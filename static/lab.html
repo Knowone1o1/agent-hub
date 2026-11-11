@@ -338,7 +338,8 @@ const toast = msg => { const t = document.createElement("div"); t.className = "t
 
 let META = null, NETS = [], net = null, sel = null;
 const pname = k => k === "free" ? "Free" : `${k} · ${((META && META.protocol_sources || {})[k] || {}).name || k}`;
-const PCOLORS = { D0: "#7d9cff", V1: "#e0a458", V2: "#3fb27f", V3: "#d97757", A1: "#22b5c9", A2: "#a78bfa", B1: "#e879a6", B2: "#9ccc65" };   // sel: {kind:'node'|'edge', id | from,to}
+const PCOLORS = { D0: "#7d9cff", V1: "#e0a458", V2: "#3fb27f", V3: "#d97757", A1: "#22b5c9", A2: "#a78bfa", A3: "#0ea5e9", A4: "#14b8a6",
+                  B1: "#e879a6", B2: "#9ccc65", B3: "#f472b6", B4: "#facc15" };   // sel: {kind:'node'|'edge', id | from,to}
 let runs = [], viewRun = null, viewEvents = [], viewNext = 0, activeRun = null, deckMode = "run", traceFilter = "";
 let pan = { x: 0, y: 0 }, saveTimer = null;
 
@@ -349,7 +350,8 @@ const nodeById = id => net.nodes.find(n => n.id === id);
 async function init() {
   META = await api("meta");
   const groups = [["Free", ["free"]], ["Baseline", ["D0"]], ["Proposal variants", ["V1", "V2", "V3"]],
-                  ["AI research", ["A1", "A2"]], ["Business research", ["B1", "B2"]]];
+                  ["AI research", Object.keys(META.protocols).filter(k => /^A\d/.test(k))],
+                  ["Business research", Object.keys(META.protocols).filter(k => /^B\d/.test(k))]];
   $("protocol").innerHTML = groups.map(([g, ks]) => `<optgroup label="${g}">${ks.filter(k => META.protocols[k]).map(k =>
     `<option value="${k}" title="${esc(META.protocols[k])}">${esc(pname(k))}</option>`).join("")}</optgroup>`).join("");
   $("model").innerHTML = META.models.map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
@@ -752,7 +754,14 @@ function protoSummary(m, proto) {
   if (proto === "A1") rows.push(["Evidence forwarded / cancelled", `${m.a1_forwarded ?? 0} / ${m.a1_inhibited ?? 0}`], ["Cancellation ratio", m.a1_cancellation_ratio != null ? Math.round(m.a1_cancellation_ratio * 100) + "%" : "—"], ["Wording not forwarded", num(m.a1_stripped_chars || 0) + " chars"], ["Unknown evidence cited", m.a1_invalid_ids ?? 0]);
   if (proto === "A2") rows.push(["Action-state records (complete)", `${m.a2_records ?? 0} (${m.a2_full_records ?? 0})`], ["Grounded in evidence", m.a2_grounded_share != null ? Math.round(m.a2_grounded_share * 100) + "%" : "—"]);
   if (proto === "B1") rows.push(["Flat / centralize rounds", `${m.b1_flat_rounds ?? 0} / ${m.b1_centralize_rounds ?? 0}`], ["Mode switches", m.b1_switches ?? 0], ["Direct msgs in flat rounds", m.b1_direct_flat_msgs ?? 0], ["Final answers held", m.b1_deferred_finals ?? 0]);
-  if (proto === "B2") rows.push(["Facilitator nudges", m.b2_nudges ?? 0], ["Decision held by check", m.b2_gate_holds ?? 0]);
+  if (proto === "A3") rows.push(["Blind answers · clusters", `${m.a3_blind_answers ?? 0} · ${m.a3_clusters ?? "—"}`], ["Top P · margin", `${m.a3_p_top ?? "—"} · ${m.a3_margin ?? "—"}${m.a3_uncertain ? " (uncertain)" : ""}`], ["Guardrail override", m.a3_override ? "yes" : "no"], ["Messages discarded", m.a3_suppressed_msgs ?? 0], ["Disclosed to coordinator", num(m.a3_disclosed_chars || 0) + " chars"]);
+  if (proto === "A4") rows.push(["Board requests · replies", `${m.a4_requests ?? 0} · ${m.a4_replies ?? 0}`], ["Volunteers per request", m.a4_volunteers_per_request ?? "—"], ["Requests nobody answered", m.a4_no_reply ?? 0]);
+  if (proto === "B2") rows.push(["Stand-up messages", m.b2_standup_msgs ?? 0], ["End-goal changes reported", m.b2_goal_changes ?? 0]);
+  if (proto === "B3") rows.push(["Interaction windows", m.b3_windows ?? 0], ["Messages held → delivered in windows", `${m.b3_held ?? 0} → ${m.b3_delivered_in_windows ?? 0}`], ["Removed (superseded or over limit)", m.b3_deduped ?? 0], ["Urgent corrections let through", m.b3_urgent ?? 0]);
+  if (proto === "B4") rows.push(["Threads opened · closed · expired", `${m.b4_threads ?? 0} · ${m.b4_closed ?? 0} · ${m.b4_expired ?? 0}`], ["Late replies dropped", m.b4_late_drops ?? 0], ["Repeated findings suppressed", m.b4_duplicates ?? 0]);
+  if (m.burstiness != null) rows.push(["Burstiness (−1 regular … +1 bursty)", m.burstiness]);
+  if (m.evidence_to_coordinator_delay != null) rows.push(["Rounds from evidence to coordinator", m.evidence_to_coordinator_delay]);
+  if (m.cross_domain_share != null) rows.push(["Messages combining 2+ specialists' evidence", `${m.cross_domain_msgs ?? 0} (${Math.round(m.cross_domain_share * 100)}%)`]);
   if (m.evidence_share_mean != null) rows.push(["Private evidence shared (mean / lowest agent)", `${Math.round(m.evidence_share_mean * 100)}% / ${Math.round((m.evidence_share_min || 0) * 100)}%`]);
   if (m.mean_message_chars != null) rows.push(["Avg message length", `${Math.round(m.mean_message_chars)} chars`]);
   rows.push(["Blocked / malformed / retries", `${m.blocked} / ${m.malformed} / ${m.retries}`]);
@@ -837,15 +846,28 @@ function renderTrace() {
         resolution_notice: () => `↪ resolution sent to ${nm(ev.to)}`,
         pause: () => `⏸ ${nm(ev.node)} paused (${esc(ev.alert_id)})`,
         resume: () => `▶ ${nm(ev.node)} resumed`,
-        mode: () => `<b style="color:#e879a6">${ev.mode === "flat" ? "◇ FLAT round: anyone may talk to anyone" : "◆ CENTRALIZE round: positions to the coordinator, who decides"}</b>`,
+        mode: () => `<b style="color:#e879a6">${({ flat: "◇ FLAT round: anyone may talk to anyone", centralize: "◆ CENTRALIZE round: positions to the coordinator, who decides",
+          standup: `☀ STAND-UP #${ev.number || ""}: everyone broadcasts done / next / end goal`,
+          quiet: "🤫 QUIET round: messages are held for the next window", interaction: "🔔 INTERACTION round: held messages delivered, coordinator acts" })[ev.mode] || ev.mode}</b>`,
+        a3_suppressed: () => `✂ ${nm(ev.from)}'s ${ev.count} message(s) discarded (no exchange in A3)`,
+        a3_blind_answer: () => ev.valid ? `🗳 blind answer from ${nm(ev.from)} (confidence ${ev.confidence}${ev.malformed ? ", malformed" : ""}): ${esc(ev.conclusion)}` : `🗳 ${nm(ev.from)} gave no usable blind answer`,
+        a3_belief: () => `<b>📊 Belief table disclosed to the coordinator</b> (top P=${ev.p_top}, margin ${ev.margin}${ev.uncertain ? ", UNCERTAIN" : ""})<div class="txt">${esc(ev.content)}</div>`,
+        a3_guardrail: () => ev.override ? `<b style="color:var(--amber)">🛡 Guardrail overrode the coordinator with the team's top answer</b>` : `🛡 guardrail: ${ev.trusted ? "trusted majority" : "no strong majority"}, coordinator ${ev.agrees ? "agrees" : "differs"}, no override`,
+        a4_no_reply: () => `📌 nobody answered ${esc(ev.board_id)}: coordinator asked to reformulate`,
+        b3_held: () => `🤫 ${nm(ev.from)}'s message to ${esc(ev.to_name)} held until the next window`,
+        b3_urgent: () => `⚡ urgent correction from ${nm(ev.from)} let through during quiet time`,
+        b3_flush: () => `📦 window batch: ${ev.held} held → ${ev.delivered} delivered (${ev.deduped} superseded, ${ev.capped} over the 3-per-agent limit)`,
+        b4_thread_open: () => `🧵 thread ${esc(ev.thread)} opened on “${esc(ev.topic)}” by ${nm(ev.from)}`,
+        b4_thread_closed: () => `✅ thread ${esc(ev.thread)} closed by a decision after ${ev.rounds_open} round(s)`,
+        b4_thread_expired: () => `⌛ thread ${esc(ev.thread)} expired without a decision`,
+        b4_late_drop: () => `✂ late reply on expired thread ${esc(ev.thread)} from ${nm(ev.from)} dropped`,
+        b4_duplicate: () => `♻ ${nm(ev.from)}'s finding on ${esc((ev.evidence_ids || []).join(", "))} not delivered: ${nm(ev.to)} already has it`,
         final_deferred: () => `⏳ final answer held until a centralize round`,
         a1_forward: () => `📄 ${esc(ev.evidence_id)} forwarded verbatim to ${nm(ev.to)} (cited by ${nm(ev.from)})`,
         a1_inhibited: () => `⊘ ${esc(ev.evidence_id)} to ${nm(ev.to)} cancelled: ${esc(ev.reason)}`,
         a1_claim: () => `↪ one-line claim from ${nm(ev.from)} to ${nm(ev.to)} (${num(ev.chars)} of ${num(ev.full_chars)} chars)`,
         a1_stripped: () => `✂ ${nm(ev.from)}'s wording to ${nm(ev.to)} not forwarded (${num(ev.full_chars)} chars)`,
         a1_invalid_id: () => `✗ ${nm(ev.from)} cited unknown evidence ${esc(ev.evidence_id)}`,
-        b2_nudge: () => `🙋 Facilitator nudges ${nm(ev.to)} (has shared ${Math.round((ev.share || 0) * 100)}% of its evidence)`,
-        b2_gate: () => ev.held ? `🛑 Facilitator holds the decision: unshared ${esc(JSON.stringify(ev.unshared))}, unused ${esc((ev.unused || []).join(", ") || "none")}` : `✅ Facilitator check passed`,
         sharing_summary: () => `📊 evidence shared: ${Object.entries(ev.stats || {}).map(([k, v]) => `${nm(k)} ${Math.round(v.share * 100)}%`).join(" · ")}`,
       }[ev.what];
       return P ? `<div class="ev call" style="${["alert", "resolution", "alert_timeout"].includes(ev.what) ? "color:var(--amber)" : ""}">${P()}</div>` : "";
@@ -1030,7 +1052,7 @@ async function newStudy(kind, methods) {
   if (!net) return;
   const pool = CASES.filter(c => c.domain === net.pack && c.split === (kind === "feasibility" ? "dev" : "heldout"));
   if (!pool.length) return toast(`No ${kind === "feasibility" ? "development" : "held-out"} cases for this network's role pack.`);
-  const conds = methods === "methods" ? ["D0", "A1", "A2", "B1", "B2"] : ["D0", "V1", "V2", "V3"];
+  const conds = methods === "methods" ? ["D0", ...ALLCONDS().filter(k => /^[AB]\d/.test(k))] : ["D0", "V1", "V2", "V3"];
   const r = await api("studies/new", { network_id: net.id, kind, conditions: conds, case_ids: pool.map(c => c.id),
     name: `${methods === "methods" ? "Method comparison (D0 vs A1 A2 B1 B2)" : kind === "feasibility" ? "Feasibility" : "Main study"}: ${net.name}`,
     repetitions: kind === "feasibility" ? (methods === "methods" ? 2 : 1) : 3 });
@@ -1144,7 +1166,14 @@ function resultsHtml(a, s) {
       ${row("A1: evidence forwarded · cancelled", v => `${v.a1_forwarded ?? 0} · ${v.a1_inhibited ?? 0}`)}
       ${row("A2: messages grounded in evidence", v => pct(v.a2_grounded_share))}
       ${row("B1: mode switches · direct flat msgs", v => `${v.b1_switches ?? 0} · ${v.b1_direct_flat_msgs ?? 0}`)}
-      ${row("B2: nudges · decisions held", v => `${v.b2_nudges ?? 0} · ${v.b2_gate_holds ?? 0}`)}
+      ${row("A3: guardrail overrides · uncertain · mean top P", v => `${v.a3_overrides ?? 0} · ${v.a3_uncertain ?? 0} · ${v.a3_p_top ?? "—"}`)}
+      ${row("A4: board requests · replies · unanswered", v => `${v.a4_requests ?? 0} · ${v.a4_replies ?? 0} · ${v.a4_no_reply ?? 0}`)}
+      ${row("B2: stand-up msgs · goal changes", v => `${v.b2_standup_msgs ?? 0} · ${v.b2_goal_changes ?? 0}`)}
+      ${row("B3: messages held · removed · urgent", v => `${v.b3_held ?? 0} · ${v.b3_deduped ?? 0} · ${v.b3_urgent ?? 0}`)}
+      ${row("B4: threads · expired · repeats suppressed", v => `${v.b4_threads ?? 0} · ${v.b4_expired ?? 0} · ${v.b4_duplicates ?? 0}`)}
+      ${row("Burstiness (mean)", v => v.burstiness ?? "—")}
+      ${row("Rounds from evidence to coordinator", v => v.evidence_to_coordinator_delay ?? "—")}
+      ${row("Messages combining 2+ specialists' evidence", v => pct(v.cross_domain_share))}
       ${row("Private evidence shared (mean / lowest)", v => `${pct(v.evidence_share_mean)} / ${pct(v.evidence_share_min)}`)}
       ${row("Avg message length (chars)", v => v.mean_message_chars != null ? Math.round(v.mean_message_chars) : "—")}
       ${row("Blocked · malformed · retries", v => `${v.blocked ?? 0} · ${v.malformed ?? 0} · ${v.retries ?? 0}`)}

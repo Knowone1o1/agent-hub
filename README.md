@@ -62,13 +62,24 @@ communicate to solve the case. The protocols differ only in **how information tr
 - **B1 · Adaptive hierarchy** (business research, Abi-Esber et al., Academy of Management Journal 2026): flat rounds while
   evidence comes in (anyone talks to anyone, no decisions), then centralized rounds where the boss collects positions and
   decides. *Brainstorm openly, then the manager pulls it together.*
-- **B2 · Facilitated information sharing** (business research, Alsobay et al., CSCW 2026): a facilitator nudges the
-  specialist who has shared least of what only it knows, and the boss must address unshared or unused evidence before
-  deciding. *A good meeting chair: "you haven't weighed in on X yet."*
+- **A3 · DarkForest controlled disclosure** (AI research, Li et al. 2026): specialists don't talk; each gives a blind
+  answer, and the boss sees only a table of the candidate answers, their support and confidence. A strong majority can
+  override the boss. *"Less talk, higher accuracy."*
+- **A4 · Blackboard with volunteers** (AI research, Salemi et al. 2025/26): the boss posts requests on a board without naming
+  anyone; whoever can help volunteers, on a board only the boss reads. *Post the question to the whole team.*
+- **B2 · Stand-up check-ins** (business research, Ghosh & Wu, Organization Science 2023): every other round from round 3,
+  everyone broadcasts what they did, what's next, and whether the end goal changed. *The classic stand-up meeting.*
+- **B3 · Quiet time with interaction windows** (business research, Perlow, Administrative Science Quarterly 1999; Bernstein,
+  Shore & Lazer, PNAS 2018): two quiet rounds where messages are held and batched (duplicates removed, max 3 per agent; only
+  urgent corrections get through), then one interaction round where everything is delivered and the boss acts. *Office hours.*
+- **B4 · Burst threads with a novelty filter** (business research, Riedl & Woolley, Academy of Management Discoveries 2017): a
+  question opens a short thread everyone answers at once and the boss must close within two rounds; late replies are dropped,
+  and findings that repeat what the recipient already has are suppressed. *Short focused bursts, no repeating yourself.*
 
 The question the Lab answers: which method makes the team **cheaper per correct answer** than D0, and what does it cost in
 reliability? Each method changes exactly one thing compared with D0, so differences can be traced to that change.
-Ready-made networks for all five (D0, A1, A2, B1, B2) are set up, and **Studies → Method comparison** compares them.
+Ready-made supply-chain networks for D0 and all eight methods (A1–A4, B1–B4) are set up, and **Studies → Method
+comparison** compares them.
 
 ### Scoring
 A run is a **joint success** when (1) the root cause matches the answer key, (2) the required evidence is cited, and

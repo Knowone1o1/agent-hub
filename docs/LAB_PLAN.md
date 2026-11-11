@@ -127,6 +127,17 @@ A new **Lab** section inside Agent Hub for multi-agent communication experiments
   - B2 facilitated sharing (CSCW 2026)
 
   Each has its own mechanism metrics in the trace, the study results and the exports. Five ready-made supply-chain networks exist (D0, A1, A2, B1, B2), plus a "Method comparison" study template.
+- **Expanded to 4 + 4 methods (11 Nov 2026).**
+  - B2 facilitated sharing was replaced by stand-up check-ins (Ghosh & Wu 2023).
+  - Added A3 DarkForest controlled disclosure (arXiv:2605.25188), A4 blackboard with volunteers (arXiv:2510.01285), B3 structured advice pairs (Sandvik et al., QJE 2020) and B4 independent estimates then discuss (Minson et al., Management Science 2018).
+  - A cross-domain integration measure now applies to every protocol.
+  - **Later the same day:** B3 and B4 were replaced with communication-*efficiency* methods.
+    - B3 is now quiet time with interaction windows (Perlow, ASQ 1999; Bernstein, Shore & Lazer, PNAS 2018).
+    - B4 is now burst threads with a novelty filter (Riedl & Woolley, AMD 2017).
+    - Burstiness and evidence-to-coordinator delay are logged for every protocol.
+    - Verified offline with a scripted model (no cost). A3/B4-era fixes (A3 blind answers) are not yet re-tested live.
+  - Nine supply-chain networks exist, and the Method comparison draft covers D0 + all 8 methods (72 runs on development cases).
+  - See [METHODS.md](METHODS.md).
 
 ## Next steps for the experiment
 1. Review and freeze the 12 supply-chain cases (Lab → Cases). Check every answer key's keywords.

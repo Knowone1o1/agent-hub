@@ -391,7 +391,13 @@ def _metrics_row(runs):
         "a1_forwarded": pm("a1_forwarded"), "a1_inhibited": pm("a1_inhibited"),
         "a2_grounded_share": _mean(runs, "a2_grounded_share"), "mean_message_chars": _mean(runs, "mean_message_chars"),
         "b1_switches": pm("b1_switches"), "b1_direct_flat_msgs": pm("b1_direct_flat_msgs"),
-        "b2_nudges": pm("b2_nudges"), "b2_gate_holds": pm("b2_gate_holds"),
+        "a3_overrides": pm("a3_override"), "a3_uncertain": pm("a3_uncertain"), "a3_p_top": _mean(runs, "a3_p_top"),
+        "a4_requests": pm("a4_requests"), "a4_replies": pm("a4_replies"), "a4_no_reply": pm("a4_no_reply"),
+        "b2_standup_msgs": pm("b2_standup_msgs"), "b2_goal_changes": pm("b2_goal_changes"),
+        "b3_held": pm("b3_held"), "b3_deduped": pm("b3_deduped"), "b3_urgent": pm("b3_urgent"),
+        "b4_threads": pm("b4_threads"), "b4_expired": pm("b4_expired"), "b4_duplicates": pm("b4_duplicates"),
+        "burstiness": _mean(runs, "burstiness"), "evidence_to_coordinator_delay": _mean(runs, "evidence_to_coordinator_delay"),
+        "cross_domain_share": _mean(runs, "cross_domain_share"),
         "evidence_share_mean": _mean(runs, "evidence_share_mean"), "evidence_share_min": _mean(runs, "evidence_share_min"),
         "cap_terminations": sum(1 for r in runs if r.get("end_reason") in CAP_REASONS),
         "mean_seconds": round(sum(r["totals"].get("seconds", 0) for r in runs) / n, 1) if n else None,
@@ -473,7 +479,10 @@ def analyze(sid, boot=2000):
 # ------------------------------------------------------------------ exports
 
 EXTRA_METRICS = ["a1_forwarded", "a1_inhibited", "a1_cancellation_ratio", "a2_grounded_share", "mean_message_chars",
-                 "b1_switches", "b1_direct_flat_msgs", "b1_deferred_finals", "b2_nudges", "b2_gate_holds",
+                 "a3_clusters", "a3_p_top", "a3_margin", "a3_uncertain", "a3_override", "a4_requests", "a4_replies", "a4_no_reply",
+                 "b1_switches", "b1_direct_flat_msgs", "b1_deferred_finals", "b2_standup_msgs", "b2_goal_changes",
+                 "b3_held", "b3_deduped", "b3_urgent", "b4_threads", "b4_expired", "b4_duplicates", "burstiness",
+                 "evidence_to_coordinator_delay", "cross_domain_share",
                  "evidence_share_mean", "evidence_share_min"]
 RUN_COLUMNS = ["study_id", "run_id", "plan_order", "condition", "case_id", "case_version", "split", "rep", "seed", "model",
                "end_reason", "rounds", "seconds", "joint_success", "cause_ok", "evidence_ok", "evidence_recall", "remediation_ok",
