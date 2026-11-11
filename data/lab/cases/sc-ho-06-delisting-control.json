@@ -1,0 +1,107 @@
+{
+  "id": "sc-ho-06-delisting-control",
+  "split": "heldout",
+  "difficulty": "easy",
+  "title": "No supply problem: a planned delisting",
+  "brief": "Sales of SKU M-010 (milk frother) dropped 40% in France this month. Is there a supply problem, and what should we do?",
+  "evidence": [
+    {
+      "id": "E1",
+      "owner": "demand",
+      "release_round": 1,
+      "type": "clue",
+      "source": "Account report",
+      "content": "France M-010 demand is down 40% because a major retailer delisted M-010 on 1 Nov. The delisting was planned and communicated to sales in September."
+    },
+    {
+      "id": "E2",
+      "owner": "inventory",
+      "release_round": 1,
+      "type": "clue",
+      "source": "WMS stock report",
+      "content": "Stock levels are normal, with no stock-outs; M-010 is slightly overstocked (9 weeks of cover)."
+    },
+    {
+      "id": "E3",
+      "owner": "logistics",
+      "release_round": 1,
+      "type": "context",
+      "source": "Delivery performance",
+      "content": "No delivery issues for M-010."
+    },
+    {
+      "id": "E4",
+      "owner": "supplier",
+      "release_round": 1,
+      "type": "context",
+      "source": "Supplier status",
+      "content": "Supplier performance is normal; next PO (3,000 units) is due in 2 weeks."
+    }
+  ],
+  "answer_key": {
+    "root_cause": "There is no supply problem: demand fell because a major retailer delisted M-010 as planned on 1 Nov; the risk now is overstock.",
+    "cause_keywords": [
+      [
+        "delist",
+        "delisted",
+        "delisting"
+      ]
+    ],
+    "required_evidence": [
+      "E1",
+      "E2"
+    ],
+    "supporting_evidence": [
+      "E3",
+      "E4"
+    ],
+    "remediation_rubric": [
+      {
+        "criterion": "Lower the forecast and reduce/defer the open PO",
+        "points": 3
+      },
+      {
+        "criterion": "Redeploy excess stock to other markets or channels",
+        "points": 2
+      },
+      {
+        "criterion": "State clearly there is no supply issue (no expediting)",
+        "points": 2
+      },
+      {
+        "criterion": "Feed known delistings into the forecast in future",
+        "points": 2
+      },
+      {
+        "criterion": "Commercial follow-up with the retailer / replacement listings",
+        "points": 1
+      }
+    ],
+    "notes": "Negative control: nothing to escalate, little to forward."
+  },
+  "registry": {
+    "features": [
+      "negative_control"
+    ],
+    "mechanism_opportunities": "None by design; protocol overhead shows up as pure cost, and V3 false alarms would be visible.",
+    "expected_timing": "Solvable in round 1-2.",
+    "favoritism_notes": "Penalises protocols with fixed overhead."
+  },
+  "domain": "supply",
+  "author": "Claude (AI draft)",
+  "status": "draft",
+  "created": 1794424507.8780844,
+  "history": [
+    {
+      "t": 1794424507.8780844,
+      "event": "created",
+      "by": "Claude (AI draft)"
+    },
+    {
+      "t": 1794425324.3307092,
+      "event": "edited (cause keywords tightened after scoring test: the word demand alone was too lenient)",
+      "by": "Claude (AI draft)"
+    }
+  ],
+  "updated": 1794424507.8780844
+}

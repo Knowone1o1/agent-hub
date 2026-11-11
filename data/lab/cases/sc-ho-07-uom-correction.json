@@ -1,0 +1,134 @@
+{
+  "id": "sc-ho-07-uom-correction",
+  "split": "heldout",
+  "difficulty": "medium",
+  "title": "Short receipt that was a unit-of-measure error",
+  "brief": "The Barcelona DC appears to have received far fewer coffee capsules (SKU C-777) than ordered on PO 8890. Find the root cause and an action plan.",
+  "evidence": [
+    {
+      "id": "E1",
+      "owner": "inventory",
+      "release_round": 1,
+      "type": "clue",
+      "source": "Goods receipt",
+      "content": "PO 8890 ordered 10,000 units of C-777; the system recorded 1,000 units received on 6 Nov."
+    },
+    {
+      "id": "E2",
+      "owner": "supplier",
+      "release_round": 1,
+      "type": "clue",
+      "source": "Supplier shipping confirmation",
+      "content": "The supplier confirms the full 10,000 units were shipped."
+    },
+    {
+      "id": "E3",
+      "owner": "logistics",
+      "release_round": 1,
+      "type": "clue",
+      "source": "Carrier delivery record",
+      "content": "The carrier delivered 1,000 cartons on 10 pallets with seals intact; the shipment weight matches 10,000 units at 10 units per carton."
+    },
+    {
+      "id": "E4",
+      "owner": "inventory",
+      "release_round": 2,
+      "type": "clue",
+      "source": "Master-data change log",
+      "content": "On 30 Oct a master-data project changed the C-777 receiving unit from 'each' to 'carton', but the conversion factor was left at 1."
+    },
+    {
+      "id": "E5",
+      "owner": "inventory",
+      "release_round": 3,
+      "type": "correction",
+      "source": "Physical recount",
+      "content": "Correction: a physical recount of the PO 8890 receipt found 1,000 cartons x 10 = 10,000 units present.",
+      "corrects": "E1"
+    },
+    {
+      "id": "E6",
+      "owner": "demand",
+      "release_round": 1,
+      "type": "context",
+      "source": "Demand report",
+      "content": "C-777 demand is slightly below forecast."
+    },
+    {
+      "id": "E7",
+      "owner": "supplier",
+      "release_round": 2,
+      "type": "distractor",
+      "source": "Supplier claims history",
+      "content": "Last month the same supplier short-shipped a different SKU (C-778) by 8%."
+    }
+  ],
+  "answer_key": {
+    "root_cause": "No physical shortage: a master-data change made 'carton' the receiving unit without a conversion factor, so 1,000 cartons (10,000 units) were recorded as 1,000 units.",
+    "cause_keywords": [
+      [
+        "unit of measure",
+        "uom",
+        "carton",
+        "conversion"
+      ],
+      [
+        "master data",
+        "master-data",
+        "conversion factor"
+      ]
+    ],
+    "required_evidence": [
+      "E1",
+      "E3",
+      "E4"
+    ],
+    "supporting_evidence": [
+      "E5",
+      "E2"
+    ],
+    "remediation_rubric": [
+      {
+        "criterion": "Fix the conversion factor and correct the inventory record",
+        "points": 3
+      },
+      {
+        "criterion": "Check other SKUs touched by the master-data project",
+        "points": 2
+      },
+      {
+        "criterion": "Cancel any duplicate reorders or expedites triggered by the false shortage",
+        "points": 2
+      },
+      {
+        "criterion": "Change control for master-data changes",
+        "points": 2
+      },
+      {
+        "criterion": "Do not file a short-shipment claim with the supplier",
+        "points": 1
+      }
+    ],
+    "notes": "E7 tempts a supplier-blame answer; E5 confirms the diagnosis late."
+  },
+  "registry": {
+    "features": [
+      "late_correction"
+    ],
+    "mechanism_opportunities": "V3: E3/E5 contradict E1; an alert can stop a supplier claim. D0 may chase the supplier (E7).",
+    "expected_timing": "Diagnosable in round 2 (E4); confirmed in round 3 (E5).",
+    "favoritism_notes": "Some V3 favour; balanced by HO-06."
+  },
+  "domain": "supply",
+  "author": "Claude (AI draft)",
+  "status": "draft",
+  "created": 1794424507.8790898,
+  "history": [
+    {
+      "t": 1794424507.8790898,
+      "event": "created",
+      "by": "Claude (AI draft)"
+    }
+  ],
+  "updated": 1794424507.8790898
+}

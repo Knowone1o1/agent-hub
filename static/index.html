@@ -1,0 +1,714 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Hub</title>
+<link rel="icon" href="/static/app.png">
+<style>
+:root {
+  --bg: #f6f5f2; --side: #efede8; --panel: #ffffff; --line: #e2dfd7; --text: #1f1e1c; --muted: #77736b;
+  --accent: #2f5bd3; --user: #eef2fd; --warn: #fff4d9; --err: #fdecec; --amber: #d48806; --green: #2f9e6a;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #171716; --side: #1d1d1b; --panel: #232321; --line: #34332f; --text: #ecebe7; --muted: #9b978e;
+          --accent: #7d9cff; --user: #24304d; --warn: #3a321c; --err: #3d2424; --amber: #f5a524; --green: #3fb27f; }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+button { font: inherit; cursor: pointer; border: 1px solid var(--line); background: var(--panel); color: var(--text);
+         border-radius: 8px; padding: 6px 12px; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.ghost { background: transparent; border-color: transparent; text-align: left; }
+button.ghost:hover { background: var(--panel); }
+input, textarea, select { font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--line);
+         border-radius: 8px; padding: 8px 10px; width: 100%; }
+textarea { resize: vertical; }
+.app { display: grid; grid-template-columns: 270px 1fr; height: 100vh; }
+aside { background: var(--side); border-right: 1px solid var(--line); padding: 14px 12px; display: flex; flex-direction: column; gap: 6px; overflow: auto; }
+aside h1 { font-size: 17px; margin: 2px 6px 8px; cursor: pointer; }
+.sec { font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin: 14px 8px 4px; display: flex; justify-content: space-between; align-items: center; }
+.sec button { padding: 0 8px; font-size: 16px; line-height: 1.4; }
+.list { display: flex; flex-direction: column; gap: 1px; }
+.list a { padding: 6px 10px; border-radius: 8px; color: var(--text); text-decoration: none; display: flex; align-items: center; gap: 8px; }
+.list a span.t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.list a.on, .list a:hover { background: var(--panel); }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.flag { font-size: 11px; font-weight: 700; border-radius: 6px; padding: 0 6px; }
+.flag.w { background: var(--amber); color: #fff; } .flag.b { color: var(--green); }
+.bottom { margin-top: auto; display: flex; flex-direction: column; gap: 4px; padding-top: 10px; }
+main { display: flex; flex-direction: column; min-width: 0; height: 100vh; }
+.head { padding: 12px 20px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.head h2 { margin: 0; font-size: 16px; flex: 1; min-width: 120px; }
+.head .sub { color: var(--muted); font-weight: 400; font-size: 14px; margin-left: 6px; }
+.feed { flex: 1; overflow: auto; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+.msg { max-width: 820px; width: 100%; margin: 0 auto; background: var(--panel); border: 1px solid var(--line);
+       border-radius: 12px; padding: 12px 14px; }
+.msg.user { background: var(--user); }
+.msg.error { background: var(--err); }
+.msg.waiting { background: var(--warn); }
+.who { font-weight: 600; font-size: 13px; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+.who .t { color: var(--muted); font-weight: 400; margin-left: 4px; }
+.body { white-space: pre-wrap; overflow-wrap: anywhere; }
+.body pre { background: var(--bg); padding: 10px; border-radius: 8px; overflow: auto; white-space: pre; }
+.body code { font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+.thinking { color: var(--muted); font-style: italic; }
+.relay { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.relay .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.composer { border-top: 1px solid var(--line); padding: 12px 20px 16px; }
+.composer .inner { max-width: 820px; margin: 0 auto; display: flex; flex-direction: column; gap: 8px; }
+.controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.chip { border-radius: 999px; padding: 3px 10px; font-size: 13px; }
+.chip.on { border-color: currentColor; font-weight: 600; }
+.controls select { width: auto; padding: 4px 8px; }
+.hint { font-size: 13px; color: var(--muted); }
+
+/* home */
+.home { margin: auto; width: min(720px, 100%); padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+.home h2 { font-size: 30px; margin: 0; text-align: center; }
+.home p { text-align: center; color: var(--muted); margin: 0 0 6px; }
+.pick { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.pick button { border-radius: 999px; padding: 7px 16px; display: flex; align-items: center; gap: 8px; }
+.pick button.on { border-color: var(--text); font-weight: 600; box-shadow: inset 0 0 0 1px var(--text); }
+.box { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.box textarea { border: none; padding: 8px; font-size: 16px; }
+.box textarea:focus { outline: none; }
+.box .row { display: flex; align-items: center; gap: 8px; }
+.box .row .hint { flex: 1; }
+.menu-btn { display: none; }
+.tag { font-size: 11px; border: 1px solid var(--line); border-radius: 6px; padding: 1px 7px; color: var(--muted); white-space: nowrap; }
+
+/* dialogs: fixed header and footer, scrolling body */
+dialog { border: 1px solid var(--line); border-radius: 16px; background: var(--panel); color: var(--text);
+         width: min(680px, calc(100vw - 32px)); max-height: calc(100vh - 48px); padding: 0; }
+dialog[open] { display: flex; flex-direction: column; }
+dialog::backdrop { background: rgba(0,0,0,.45); }
+.dlg-head { padding: 18px 22px 4px; }
+.dlg-head h3 { margin: 0; font-size: 18px; }
+.dlg-head .hint { margin: 4px 0 0; }
+.dlg-body { padding: 12px 22px 18px; overflow: auto; display: flex; flex-direction: column; gap: 16px; }
+.dlg-foot { padding: 12px 22px; border-top: 1px solid var(--line); display: flex; gap: 8px; align-items: center; }
+.dlg-foot .sp { flex: 1; }
+.dlg-foot .err { color: #e5484d; font-size: 13px; }
+
+/* form fields: label line (title left, hint right) above the control */
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.lbl { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 13px; font-weight: 600; }
+.lbl .hint { font-weight: 400; font-size: 12px; text-align: right; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.section-title { font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 600; }
+.note { font-size: 12.5px; color: var(--muted); background: var(--bg); border-radius: 8px; padding: 8px 10px; }
+.opts { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.opt { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px;
+       cursor: pointer; font-size: 14px; background: var(--panel); }
+.opt input { width: auto; margin: 0; accent-color: var(--accent); }
+.opt input[type=color] { width: 30px; height: 22px; padding: 0; border: none; background: none; margin-left: auto; }
+.tpls { display: flex; flex-wrap: wrap; gap: 6px; }
+.tpls button { border-radius: 999px; padding: 4px 12px; font-size: 13px; }
+.tpls button.on { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+
+/* member picker: one tile per agent; click to add/remove, star = manager */
+.picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.tile { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 10px; border: 1px solid var(--line);
+        border-radius: 12px; background: var(--panel); cursor: pointer; user-select: none; text-align: left; color: var(--text); }
+.tile:not(.on) { opacity: .55; }
+.tile:not(.on):hover { opacity: .85; }
+.tile.on { border-color: var(--c); box-shadow: inset 0 0 0 1px var(--c); }
+.av { width: 30px; height: 30px; border-radius: 50%; background: var(--c); color: #fff; font-weight: 700; font-size: 14px;
+      display: grid; place-items: center; flex: none; }
+.ti { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.25; }
+.ti b { font-size: 14px; }
+.ti span { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.star { border: none; background: transparent; padding: 2px 6px; font-size: 17px; line-height: 1; color: var(--muted); border-radius: 6px; }
+.star:hover { background: var(--bg); }
+.star.on { color: var(--amber); }
+.tile:not(.on) .star { visibility: hidden; }
+.picker-foot { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+.picker-foot b { color: var(--text); }
+
+/* team panel on the home screen */
+.teambox { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.teambox .top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.teambox .top select { width: auto; min-width: 170px; padding: 5px 8px; }
+.teambox .top .sp { flex: 1; }
+.linkbtn { border: none; background: transparent; color: var(--accent); padding: 4px 6px; font-size: 13px; }
+.linkbtn:hover { text-decoration: underline; }
+
+/* agents & teams page */
+.page { width: min(1000px, 100%); margin: 0 auto; display: flex; flex-direction: column; gap: 14px; padding-bottom: 30px; }
+.page h2 { margin: 6px 0 0; font-size: 24px; }
+.page .bar { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.page .bar h3 { margin: 0; font-size: 17px; }
+.page .bar .hint { flex: 1; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.card.off { opacity: .55; }
+.card .top { display: flex; align-items: center; gap: 10px; }
+.card .top .ti b { font-size: 15px; }
+.card .desc { font-size: 14px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; min-height: 4.4em; }
+.card .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: auto; }
+.card .row .sp { flex: 1; }
+.avs { display: flex; flex-wrap: wrap; gap: 6px; }
+.avs .m { display: flex; align-items: center; gap: 6px; font-size: 13px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px 2px 3px; }
+.avs .m .av { width: 22px; height: 22px; font-size: 11px; }
+.avs .m.mgr { border-color: var(--amber); }
+.empty-card { border: 1px dashed var(--line); border-radius: 14px; padding: 18px; color: var(--muted); font-size: 14px; text-align: center; }
+@media (max-width: 600px) { .two { grid-template-columns: 1fr; } .lbl { flex-direction: column; gap: 2px; } .lbl .hint { text-align: left; } }
+@media (max-width: 760px) {
+  .app { grid-template-columns: 1fr; }
+  aside { display: none; position: fixed; inset: 0; z-index: 5; }
+  aside.open { display: flex; }
+  .menu-btn { display: inline-block; }
+  .feed, .composer, .head { padding-left: 16px; padding-right: 16px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside id="side">
+    <h1 onclick="goHome()">Agent Hub</h1>
+    <button class="primary" onclick="goHome()">+ New</button>
+    <div class="sec">Projects <button class="ghost" title="New project" onclick="goHome('project')">+</button></div>
+    <div class="list" id="projects"></div>
+    <div class="sec">Chats</div>
+    <div class="list" id="chats"></div>
+    <div class="bottom">
+      <button class="ghost" onclick="location.href='/lab'">🧪 Agent Lab</button>
+      <button class="ghost" onclick="goAgents()">🛠 Agents &amp; teams</button>
+      <button class="ghost" onclick="openProfile()">👤 About me (shared profile)</button>
+      <button class="ghost" onclick="window.open('/dashboard', 'teamdash', 'width=1600,height=900')">📊 Open team dashboard</button>
+    </div>
+  </aside>
+  <main>
+    <div class="head" id="head" hidden>
+      <button class="menu-btn" onclick="side.classList.toggle('open')">☰</button>
+      <h2 id="roomTitle"></h2>
+      <button id="membersBtn" onclick="openMembers()">Settings</button>
+      <button id="stopBtn" onclick="post('stop')" hidden>Stop</button>
+    </div>
+
+    <div class="feed" id="feed"></div>
+
+    <div class="composer" id="composer" hidden>
+      <div class="inner">
+        <textarea id="input" rows="3" placeholder="Message… (Ctrl+Enter to send)"></textarea>
+        <div class="controls" id="freeControls">
+          <span>Who replies:</span><span id="chips"></span>
+          <span>Rounds:</span>
+          <select id="rounds"><option>1</option><option>2</option><option>3</option><option>5</option></select>
+          <span style="flex:1"></span>
+          <button onclick="send(false)" title="Agents take turns again without a new message from you">Let them continue</button>
+          <button class="primary" onclick="send(true)">Send</button>
+        </div>
+        <div class="controls" id="mgrControls" hidden>
+          <span id="mgrHint"></span><span style="flex:1"></span>
+          <button onclick="send(false)" title="Hand control back to the manager without a new message">Ask manager to continue</button>
+          <button class="primary" onclick="send(true)">Send</button>
+        </div>
+        <div class="controls" id="chatControls" hidden>
+          <span id="chatHint"></span><span style="flex:1"></span>
+          <button class="primary" onclick="send(true)">Send</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<dialog id="membersDlg">
+  <div class="dlg-head"><h3 id="setTitle">Settings</h3></div>
+  <div class="dlg-body">
+    <label class="field"><span class="lbl">Name</span><input id="editTitle"></label>
+    <div id="projectSettings" style="display:flex;flex-direction:column;gap:16px">
+      <div class="field"><span class="lbl">Team <span class="hint">click to add or remove · ★ = manager</span></span>
+        <div id="editPick"></div></div>
+      <label class="field"><span class="lbl">Hand-off limit <span class="hint">manager → team → manager cycles per message</span></span>
+        <select id="editHandoffs"><option>1</option><option>2</option><option>3</option><option>5</option><option>8</option></select></label>
+    </div>
+  </div>
+  <div class="dlg-foot">
+    <button onclick="deleteRoom()">Delete</button><span class="sp"></span>
+    <button onclick="membersDlg.close()">Cancel</button><button class="primary" onclick="saveMembers()">Save</button>
+  </div>
+</dialog>
+
+<dialog id="agentDlg">
+  <div class="dlg-head"><h3 id="agentDlgTitle">New agent</h3></div>
+  <div class="dlg-body">
+    <div class="field" id="tplWrap"><span class="section-title">Start from a template</span><div id="templates" class="tpls"></div></div>
+    <div class="two">
+      <label class="field"><span class="lbl">Name <span class="hint">one word, for @mentions</span></span><input id="aName" placeholder="e.g. Negotiator"></label>
+      <label class="field"><span class="lbl">Job <span class="hint">the team sees this</span></span><input id="aJob" placeholder="What it's responsible for"></label>
+    </div>
+    <label class="field"><span class="lbl">Instructions <span class="hint">how it works, what to focus on, its style</span></span>
+      <textarea id="aPersona" rows="4"></textarea></label>
+    <div class="two">
+      <label class="field"><span class="lbl">Engine</span><select id="aType" onchange="engineChanged()"></select></label>
+      <div class="field"><span class="lbl">Model</span><select id="aModelSel" onchange="engineChanged(true)"></select><input id="aModel" placeholder="model name"></div>
+    </div>
+    <label class="field" id="aBaseWrap"><span class="lbl">Server address</span><input id="aBase" placeholder="http://localhost:11434/v1"></label>
+    <div class="note" id="aEngineNote"></div>
+    <div class="field"><span class="section-title">Options</span>
+      <div class="opts">
+        <label class="opt"><input type="checkbox" id="aChat"> Use in chats</label>
+        <label class="opt"><input type="checkbox" id="aProject"> Use in projects</label>
+        <label class="opt" id="aFilesWrap"><input type="checkbox" id="aFiles"> Can create/edit files</label>
+        <label class="opt" id="aWebWrap"><input type="checkbox" id="aWeb"> Can search the web</label>
+        <label class="opt"><input type="checkbox" id="aEnabled"> Active</label>
+        <label class="opt">Color <input type="color" id="aColor"></label>
+      </div>
+    </div>
+  </div>
+  <div class="dlg-foot">
+    <button id="aDelete" onclick="deleteAgent()">Delete agent</button>
+    <span class="sp err" id="aError"></span>
+    <button onclick="agentDlg.close()">Cancel</button><button class="primary" onclick="saveAgent()">Save agent</button>
+  </div>
+</dialog>
+
+<dialog id="teamDlg">
+  <div class="dlg-head"><h3 id="teamDlgTitle">New team</h3></div>
+  <div class="dlg-body">
+    <div class="two">
+      <label class="field"><span class="lbl">Team name</span><input id="tName" placeholder="e.g. Etsy crew"></label>
+      <label class="field"><span class="lbl">What it's for <span class="hint">optional</span></span><input id="tDesc" placeholder="e.g. Running the Etsy shop"></label>
+    </div>
+    <div class="field"><span class="lbl">Members <span class="hint">click to add or remove · ★ = manager</span></span>
+      <div id="tPick"></div></div>
+  </div>
+  <div class="dlg-foot">
+    <button id="tDelete" onclick="deleteTeam()">Delete team</button>
+    <span class="sp err" id="tError"></span>
+    <button onclick="teamDlg.close()">Cancel</button><button class="primary" onclick="saveTeam()">Save team</button>
+  </div>
+</dialog>
+
+<dialog id="profileDlg">
+  <div class="dlg-head"><h3>About me</h3>
+    <p class="hint">Every agent reads this before replying. Best source: ask ChatGPT to write a profile of you from its memory and paste it here.</p></div>
+  <div class="dlg-body"><textarea id="profileText" rows="16"></textarea></div>
+  <div class="dlg-foot"><span class="sp"></span><button onclick="profileDlg.close()">Cancel</button><button class="primary" onclick="saveProfile()">Save</button></div>
+</dialog>
+
+<script>
+let S = { agents: [], rooms: [], user_name: "Me" }, room = null, selected = new Set(), lastSig = "";
+let homeMode = "claude";  // agent id for a chat, or "project"
+const $ = id => document.getElementById(id);
+const api = (path, body) => fetch(path, body ? { method: "POST", headers: {"Content-Type": "application/json"},
+  body: JSON.stringify(body) } : {cache: "no-store"}).then(r => r.json());
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const agent = id => S.agents.find(a => a.id === id);
+const enabled = () => S.agents.filter(a => a.enabled !== false);
+const hasRole = (a, r) => (a.roles || ["chat", "project"]).includes(r);
+
+function md(text) {
+  const parts = text.split(/```(?:[\w-]*)\n?([\s\S]*?)```/g);
+  return parts.map((p, i) => i % 2 ? `<pre><code>${esc(p)}</code></pre>` :
+    esc(p).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")).join("");
+}
+
+async function loadState() {
+  S = await api("/api/state");
+  const item = r => {
+    const a = agent(r.members[0]);
+    const dot = r.kind === "chat" && a ? `<span class="dot" style="background:${a.color}"></span>` : "";
+    const flag = r.waiting ? `<span class="flag w">YOUR TURN</span>` : r.busy ? `<span class="flag b">●</span>` : "";
+    return `<a href="#${r.id}" class="${room && room.id === r.id ? "on" : ""}">${dot}<span class="t">${esc(r.title)}</span>${flag}</a>`;
+  };
+  $("projects").innerHTML = S.rooms.filter(r => r.kind !== "chat").map(item).join("") || `<span class="hint" style="padding:0 10px">No projects yet</span>`;
+  $("chats").innerHTML = S.rooms.filter(r => r.kind === "chat").map(item).join("") || `<span class="hint" style="padding:0 10px">No chats yet</span>`;
+}
+
+/* ---------- home / new ---------- */
+function goHome(mode, teamId) {
+  room = null; lastSig = ""; if (location.hash) history.pushState("", "", location.pathname);
+  if (mode) homeMode = mode;
+  const team = (S.teams || []).find(t => t.id === teamId);
+  $("head").hidden = true; $("composer").hidden = true; $("side").classList.remove("open");
+  const chatAgents = enabled().filter(a => hasRole(a, "chat"));
+  if (homeMode !== "project" && !agent(homeMode)) homeMode = (chatAgents[0] || {}).id || "project";
+  const picks = chatAgents.map(a => `<button class="${homeMode === a.id ? "on" : ""}" onclick="goHome('${a.id}')">
+      <span class="dot" style="background:${a.color}"></span>Chat with ${esc(a.name)}</button>`).join("") +
+    `<button class="${homeMode === "project" ? "on" : ""}" onclick="goHome('project')">🧩 Team project</button>`;
+  const proj = homeMode === "project";
+  const teamPick = `<select id="homeTeamSel" onchange="applyTeam(this.value)"><option value="">Custom lineup</option>` +
+    (S.teams || []).map(t => `<option value="${t.id}" ${team && team.id === t.id ? "selected" : ""}>${esc(t.name)}</option>`).join("") + `</select>`;
+  const sel = agent(homeMode);
+  $("feed").innerHTML = `<div class="home">
+    <h2>What are we working on?</h2>
+    <p>Quick questions: chat with one AI. Bigger work: start a team project.</p>
+    <div class="pick">${picks}</div>
+    ${proj ? `<input id="projTitle" placeholder="Project name (e.g. Etsy store)">` : ""}
+    <div class="box">
+      <textarea id="homeInput" rows="${proj ? 6 : 4}" placeholder="${proj ? "Describe the goal for the team…" : `Message ${esc(sel ? sel.name : "")}…`}"></textarea>
+      <div class="row">
+        <span class="hint">${proj ? "The manager plans it and assigns the work." :
+          sel && sel.type === "manual" ? `${esc(sel.name)} is a copy-paste relay: you paste its reply back here.` : "Ctrl+Enter to send"}</span>
+        <button class="primary" onclick="startNew()">${proj ? "Start project" : "Send"}</button>
+      </div>
+    </div>
+    ${proj ? `<div class="teambox">
+        <div class="top"><span class="section-title">Team</span>${teamPick}<span class="sp"></span>
+          <button class="linkbtn" onclick="saveLineup()">Save as team</button>
+          <button class="linkbtn" onclick="goAgents()">Manage agents</button></div>
+        <div id="homePick"></div>
+      </div>` : ""}
+  </div>`;
+  if (proj) {
+    if (team) picker("homePick", team.members, team.manager);
+    else picker("homePick", enabled().filter(a => hasRole(a, "project")).map(a => a.id), S.default_manager);
+  }
+  $("homeInput").addEventListener("keydown", e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) startNew(); });
+  $("homeInput").focus();
+  loadState();
+}
+
+function applyTeam(id) {
+  const t = (S.teams || []).find(x => x.id === id);
+  if (t) picker("homePick", t.members, t.manager);
+}
+
+async function saveLineup() {
+  const v = pickValue("homePick");
+  if (!v.members.length) return alert("Pick at least one agent first.");
+  const name = prompt("Name this team:");
+  if (!name) return;
+  const r = await api("/api/teams/save", { name, ...v });
+  if (r.error) return alert(r.error);
+  const goal = $("homeInput").value, title = $("projTitle").value;
+  await loadState(); goHome("project", r.team.id);
+  $("homeInput").value = goal; $("projTitle").value = title;
+}
+
+async function startNew() {
+  const text = $("homeInput").value.trim();
+  if (homeMode === "project") {
+    const { members, manager } = pickValue("homePick");
+    if (!members.length) return alert("Pick at least one agent for the team.");
+    const r = await api("/api/rooms", { kind: "project", title: $("projTitle").value || text.split("\n")[0].slice(0, 50) || "New project",
+                                        members, manager });
+    if (text) await api(`/api/rooms/${r.id}/message`, { text, ask: members });
+    location.hash = r.id;
+  } else {
+    if (!text) return;
+    const r = await api("/api/rooms", { kind: "chat", members: [homeMode], title: text.split("\n")[0].slice(0, 50) });
+    await api(`/api/rooms/${r.id}/message`, { text, ask: [homeMode] });
+    location.hash = r.id;
+  }
+}
+
+/* ---------- room view ---------- */
+async function openRoom(id) {
+  const r = await api(`/api/rooms/${id}`);
+  if (r.error) { goHome(); return; }
+  const changed = !room || room.id !== r.id;
+  room = r;
+  if (changed) { selected = new Set(room.members); lastSig = ""; $("side").classList.remove("open"); }
+  render();
+  if (changed) loadState();
+}
+
+function render() {
+  $("head").hidden = false; $("composer").hidden = false;
+  const chat = room.kind === "chat";
+  const mgr = !chat && room.manager && room.members.includes(room.manager) ? agent(room.manager) : null;
+  const sub = chat ? (agent(room.members[0]) || {}).name : mgr ? `managed by ${mgr.name}` :
+    room.members.map(id => (agent(id) || {}).name).join(", ");
+  $("roomTitle").innerHTML = `${esc(room.title)}<span class="sub">${esc(sub || "")}</span>`;
+  $("freeControls").hidden = chat || !!mgr; $("mgrControls").hidden = !mgr; $("chatControls").hidden = !chat;
+  if (mgr) $("mgrHint").textContent = `Messages go to ${mgr.name}, who assigns the team. @Name talks to one agent directly.`;
+  if (chat) { const a = agent(room.members[0]);
+    $("chatHint").textContent = a && a.type === "manual" ? `${a.name} is a copy-paste relay.` : "Ctrl+Enter to send"; }
+  $("stopBtn").hidden = !room.busy && !room.messages.some(m => m.status === "waiting");
+  $("chips").innerHTML = room.members.filter(agent).map(id => { const a = agent(id);
+    return `<button class="chip ${selected.has(id) ? "on" : ""}" style="color:${a.color}" onclick="toggle('${id}')">${esc(a.name)}</button>`;
+  }).join(" ");
+  const sig = JSON.stringify(room.messages.map(m => [m.id, m.status, m.text.length]));
+  if (sig === lastSig) return;
+  const feed = $("feed"), first = lastSig === "", atBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 80;
+  const draft = {}; feed.querySelectorAll(".relay textarea").forEach(t => draft[t.dataset.id] = t.value);
+  lastSig = sig;
+  feed.innerHTML = room.messages.length ? room.messages.map(msgHtml).join("") :
+    `<div class="home"><p>${chat ? "Say something to get started." : "Describe the goal for the team to get started."}</p></div>`;
+  feed.querySelectorAll(".relay textarea").forEach(t => { if (draft[t.dataset.id]) t.value = draft[t.dataset.id]; });
+  if (atBottom || first) feed.scrollTop = feed.scrollHeight;
+  loadState();
+}
+
+function msgHtml(m) {
+  const a = agent(m.author), name = m.author === "user" ? S.user_name : (a ? a.name : m.author);
+  const color = a ? a.color : "var(--accent)";
+  const time = new Date(m.ts * 1000).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"});
+  let body;
+  if (m.status === "thinking") body = `<div class="thinking">thinking…</div>`;
+  else if (m.status === "waiting") body = `
+    <div class="relay">
+      <div class="hint"><b>Your turn to relay.</b>${a && a.model ? ` Use model <b>${esc(a.model)}</b>.` : ""} 1) Copy  2) Paste into ${esc(name)} (keep one ${esc(name)} chat for this ${room.kind === "chat" ? "conversation" : "project"})  3) Paste the reply below.</div>
+      <div class="row"><button class="primary" onclick="copyPrompt('${m.id}', this)">Copy message for ${esc(name)}</button>
+        <button onclick="this.parentNode.nextElementSibling.hidden=!this.parentNode.nextElementSibling.hidden">Show it</button></div>
+      <pre hidden style="max-height:240px;overflow:auto;white-space:pre-wrap">${esc(m.relay_prompt || "")}</pre>
+      <textarea rows="5" data-id="${m.id}" placeholder="Paste ${esc(name)}'s reply here"></textarea>
+      <div class="row"><button class="primary" onclick="submitRelay('${m.id}', this)">Post reply</button>
+        <button onclick="post('skip', {message_id: '${m.id}'})">Skip</button></div>
+    </div>`;
+  else body = `<div class="body">${md(m.text)}</div>`;
+  return `<div class="msg ${m.kind} ${m.status}"><div class="who"><span class="dot" style="background:${color}"></span>${esc(name)}
+    <span class="t">${time}${m.status === "error" ? " · error" : ""}</span></div>${body}</div>`;
+}
+
+function toggle(id) { selected.has(id) ? selected.delete(id) : selected.add(id); render(); }
+
+async function post(action, body = {}) { await api(`/api/rooms/${room.id}/${action}`, body); openRoom(room.id); }
+
+async function send(withText) {
+  const text = withText ? $("input").value.trim() : "";
+  if (withText && !text) return;
+  const ask = room.kind === "chat" ? room.members : room.members.filter(id => selected.has(id));
+  if (!room.manager && !ask.length && !/@\w/.test(text)) { alert("Pick at least one agent to reply."); return; }
+  $("input").value = "";
+  await post("message", { text, ask, rounds: room.kind === "chat" ? 1 : +$("rounds").value });
+}
+
+async function copyPrompt(id, btn) {
+  const m = room.messages.find(x => x.id === id);
+  try { await navigator.clipboard.writeText(m.relay_prompt); }
+  catch { const t = document.createElement("textarea"); t.value = m.relay_prompt; document.body.append(t); t.select(); document.execCommand("copy"); t.remove(); }
+  btn.textContent = "Copied ✓"; setTimeout(() => btn.textContent = "Copy again", 1500);
+}
+
+async function submitRelay(id, btn) {
+  const t = btn.closest(".relay").querySelector("textarea").value.trim();
+  if (t) await post("relay", { message_id: id, text: t });
+}
+
+/* ---------- agents & teams ---------- */
+const ENGINES = {
+  claude_cli: { label: "Claude (your subscription) · automatic",
+    models: [["", "Default (your Claude Code setting)"], ["opus", "Opus · most capable everyday model"],
+             ["sonnet", "Sonnet · fast and strong"], ["haiku", "Haiku · fastest and lightest"],
+             ["claude-fable-5-2", "Fable 5.2 · top tier (if your plan includes it)"], ["custom", "Other (type a model ID)"]],
+    note: "Runs through Claude Code on this PC. Counts toward your Claude plan's usage; Opus and Fable use it up faster than Sonnet or Haiku." },
+  manual: { label: "ChatGPT / any chat app · copy-paste", models: [["custom", "Model you'll pick in that app"]],
+    note: "You relay messages by copy-paste. The model is a reminder shown on the relay card (e.g. the model you choose in ChatGPT)." },
+  codex_cli: { label: "Codex CLI (ChatGPT plan) · automatic", models: [["", "Default"], ["custom", "Other (type a model name)"]],
+    note: "Needs setup first: install Node.js, then run npm install -g @openai/codex and codex login." },
+  openai_compatible: { label: "Local model (Ollama) · free, automatic", models: [["custom", "Model name"]],
+    note: "Runs on this PC through Ollama. Install Ollama and pull the model first (e.g. ollama pull llama3.1)." },
+};
+const TEMPLATES = {
+  Researcher: { description: "Investigates questions, gathers facts and compares options.", web: true,
+    persona: "Your role: research. Be thorough, say where facts come from, separate what you know from what you assume, and end with a clear recommendation." },
+  Coder: { description: "Writes, fixes and explains code; builds tools and scripts.", files: true,
+    persona: "Your role: software engineer. Write complete, working code, save it as files, explain how to run it, and test what you can." },
+  Writer: { description: "Drafts copy: product listings, emails, posts, documents.", files: true,
+    persona: "Your role: writer. Match the audience and tone, keep it clear and persuasive, and deliver finished text ready to paste." },
+  Negotiator: { description: "Plans negotiations and drafts persuasive messages; stress-tests offers.",
+    persona: "Your role: negotiator. Identify each side's interests, leverage and walk-away point. Propose a strategy, draft the actual messages, and argue the other side's view to find weak spots." },
+  Marketer: { description: "Growth: SEO, pricing, promotions and finding customers.", web: true,
+    persona: "Your role: marketer. Think about who buys and why. Give concrete, prioritized actions with expected impact, not generic advice." },
+  Analyst: { description: "Crunches numbers, builds tables, spots trends and risks.", files: true,
+    persona: "Your role: analyst. Show your numbers, state assumptions, and turn data into a clear recommendation." },
+  Critic: { description: "Reviews the team's work and finds weaknesses before you ship.",
+    persona: "Your role: critic. Be specific and honest, rank issues by importance, and say plainly when something is good enough." },
+};
+const PALETTE = ["#d97757", "#e0a458", "#c2410c", "#2f9e6a", "#3b82f6", "#8a63d2", "#db2777", "#0d9488", "#ca8a04"];
+let editing = null, editingTeam = null;
+
+/* Short "engine · model" line, e.g. "Claude · Sonnet", "Copy-paste relay", "Local · llama3.1". */
+function engineShort(a) {
+  const e = ENGINES[a.type];
+  if (!e) return a.type;
+  const known = e.models.find(x => x[0] === (a.model || "") && x[0] !== "custom");
+  const model = a.model ? (known ? known[1].split(" · ")[0] : a.model) : "";
+  const base = { claude_cli: "Claude", manual: "Copy-paste relay", codex_cli: "Codex", openai_compatible: "Local model" }[a.type];
+  return model ? `${base} · ${model}` : base;
+}
+const initial = a => esc((a.name || "?")[0].toUpperCase());
+
+/* ---- member picker: tiles you click to add/remove; ★ marks the manager ---- */
+const PICKS = {};
+function picker(el, members, manager) {
+  PICKS[el] = { members: new Set(members), manager: manager || null };
+  drawPicker(el);
+}
+function drawPicker(el) {
+  const p = PICKS[el];
+  const tiles = enabled().map(a => {
+    const on = p.members.has(a.id), mgr = p.manager === a.id;
+    return `<div class="tile ${on ? "on" : ""}" style="--c:${a.color || "#888"}" onclick="pickToggle('${el}','${a.id}')" title="${esc(a.description || "")}">
+      <span class="av">${initial(a)}</span>
+      <span class="ti"><b>${esc(a.name)}</b><span>${esc(engineShort(a))}</span></span>
+      <button class="star ${mgr ? "on" : ""}" title="${mgr ? "Manager" : "Make manager"}"
+        onclick="event.stopPropagation(); pickStar('${el}','${a.id}')">${mgr ? "★" : "☆"}</button></div>`;
+  }).join("");
+  const m = agent(p.manager);
+  $(el).innerHTML = `<div class="picker">${tiles}</div>
+    <div class="picker-foot"><span>${p.members.size} selected · ${m ? `Manager: <b>${esc(m.name)}</b> plans and assigns the work`
+      : "No manager: everyone discusses together"}</span></div>`;
+}
+function pickToggle(el, id) {
+  const p = PICKS[el];
+  if (p.members.has(id)) { p.members.delete(id); if (p.manager === id) p.manager = null; }
+  else p.members.add(id);
+  drawPicker(el); pickChanged(el);
+}
+function pickStar(el, id) {
+  const p = PICKS[el];
+  p.manager = p.manager === id ? null : id;
+  drawPicker(el); pickChanged(el);
+}
+function pickChanged(el) { if (el === "homePick" && $("homeTeamSel")) $("homeTeamSel").value = ""; }
+function pickValue(el) {
+  const p = PICKS[el];
+  return { members: S.agents.map(a => a.id).filter(id => p.members.has(id)), manager: p.manager || "" };
+}
+
+function goAgents() {
+  room = null; lastSig = ""; if (location.hash !== "#agents") history.pushState("", "", "#agents");
+  $("head").hidden = true; $("composer").hidden = true; $("side").classList.remove("open");
+  const card = a => `<div class="card ${a.enabled === false ? "off" : ""}" style="--c:${a.color || "#888"}">
+      <div class="top"><span class="av">${initial(a)}</span>
+        <span class="ti"><b>${esc(a.name)}</b><span>${esc(engineShort(a))}</span></span>
+        ${a.enabled === false ? `<span class="tag">off</span>` : ""}</div>
+      <div class="desc">${esc(a.description || "No job description yet.")}</div>
+      <div class="row">${(a.roles || ["chat", "project"]).map(r => `<span class="tag">${r === "chat" ? "Chats" : "Projects"}</span>`).join("")}
+        ${a.can_edit_files ? `<span class="tag">Files</span>` : ""}${a.web ? `<span class="tag">Web</span>` : ""}
+        <span class="sp"></span><button onclick="openAgent('${a.id}')">Edit</button></div></div>`;
+  const teamCard = t => `<div class="card">
+      <div class="top"><span class="ti"><b>${esc(t.name)}</b><span>${t.members.length} members${agent(t.manager) ? ` · managed by ${esc(agent(t.manager).name)}` : ""}</span></span></div>
+      ${t.description ? `<div class="desc" style="min-height:0">${esc(t.description)}</div>` : ""}
+      <div class="avs">${t.members.map(agent).filter(Boolean).map(a =>
+        `<span class="m ${a.id === t.manager ? "mgr" : ""}" style="--c:${a.color}"><span class="av">${initial(a)}</span>${esc(a.name)}${a.id === t.manager ? " ★" : ""}</span>`).join("")}</div>
+      <div class="row"><button class="primary" onclick="goHome('project', '${t.id}')">Start project</button>
+        <span class="sp"></span><button onclick="openTeam('${t.id}')">Edit</button></div></div>`;
+  $("feed").innerHTML = `<div class="page">
+    <h2>Agents &amp; teams</h2>
+    <div class="bar"><h3>Agents</h3><span class="hint">Each agent has one job, an engine and a model.</span>
+      <button class="primary" onclick="openAgent()">+ New agent</button></div>
+    <div class="cards">${S.agents.map(card).join("")}</div>
+    <div class="bar"><h3>Teams</h3><span class="hint">Saved lineups you can start a project with.</span>
+      <button class="primary" onclick="openTeam()">+ New team</button></div>
+    <div class="cards">${(S.teams || []).map(teamCard).join("") || `<div class="empty-card">No saved teams yet.</div>`}</div>
+  </div>`;
+}
+
+function openAgent(id) {
+  editing = id ? S.agents.find(a => a.id === id) : null;
+  const a = editing || { type: "claude_cli", roles: ["chat", "project"], enabled: true,
+                         color: PALETTE[S.agents.length % PALETTE.length] };
+  $("agentDlgTitle").textContent = editing ? `Edit ${a.name}` : "New agent";
+  $("tplWrap").hidden = !!editing;
+  $("templates").innerHTML = Object.keys(TEMPLATES).map(k => `<button onclick="useTemplate('${k}', this)">${k}</button>`).join("");
+  $("aType").innerHTML = Object.entries(ENGINES).map(([k, e]) => `<option value="${k}">${e.label}</option>`).join("");
+  $("aName").value = a.name || ""; $("aJob").value = a.description || ""; $("aPersona").value = a.persona || "";
+  $("aType").value = a.type; $("aBase").value = a.base_url || "";
+  $("aChat").checked = (a.roles || []).includes("chat"); $("aProject").checked = (a.roles || []).includes("project");
+  $("aFiles").checked = !!a.can_edit_files; $("aWeb").checked = !!a.web; $("aEnabled").checked = a.enabled !== false;
+  $("aColor").value = /^#[0-9a-f]{6}$/i.test(a.color || "") ? a.color : "#3b82f6";
+  fillModels(a.model || ""); $("aDelete").hidden = !editing; $("aError").textContent = "";
+  agentDlg.showModal();
+}
+
+function fillModels(current) {
+  const e = ENGINES[$("aType").value];
+  $("aModelSel").innerHTML = e.models.map(([v, l]) => `<option value="${v}">${l}</option>`).join("");
+  const known = e.models.some(([v]) => v === current && v !== "custom");
+  $("aModelSel").value = known ? current : (e.models.some(([v]) => v === "custom") && current ? "custom" : e.models[0][0]);
+  $("aModel").value = known ? "" : current;
+  engineChanged(true);
+}
+
+function engineChanged(modelOnly) {
+  const t = $("aType").value, e = ENGINES[t];
+  if (!modelOnly) return fillModels("");
+  const custom = $("aModelSel").value === "custom";
+  $("aModel").hidden = !custom;
+  $("aModel").placeholder = t === "manual" ? "e.g. the model you select in ChatGPT" : t === "openai_compatible" ? "e.g. llama3.1" : "model ID";
+  $("aModelSel").hidden = e.models.length === 1;
+  $("aBaseWrap").hidden = t !== "openai_compatible";
+  $("aFilesWrap").hidden = $("aWebWrap").hidden = t !== "claude_cli";
+  let note = e.note;
+  if (t === "codex_cli" && !S.codex_found) note = "⚠ Codex isn't installed yet. " + note;
+  if (t === "claude_cli" && !S.claude_found) note = "⚠ Claude Code wasn't found on this PC. " + note;
+  $("aEngineNote").textContent = note;
+}
+
+function useTemplate(k, btn) {
+  const t = TEMPLATES[k];
+  document.querySelectorAll("#templates button").forEach(b => b.classList.toggle("on", b === btn));
+  $("aName").value = k; $("aJob").value = t.description; $("aPersona").value = t.persona;
+  $("aFiles").checked = !!t.files; $("aWeb").checked = !!t.web;
+}
+
+async function saveAgent() {
+  const t = $("aType").value;
+  const model = $("aModelSel").hidden || $("aModelSel").value === "custom" ? $("aModel").value.trim() : $("aModelSel").value;
+  const roles = [$("aChat").checked && "chat", $("aProject").checked && "project"].filter(Boolean);
+  const body = { id: editing && editing.id, name: $("aName").value.trim(), description: $("aJob").value.trim(),
+    persona: $("aPersona").value.trim(), type: t, model, roles, color: $("aColor").value,
+    enabled: $("aEnabled").checked, can_edit_files: t === "claude_cli" && $("aFiles").checked,
+    web: t === "claude_cli" && $("aWeb").checked, base_url: t === "openai_compatible" ? $("aBase").value.trim() || "http://localhost:11434/v1" : "" };
+  if (t === "openai_compatible" && !model) return $("aError").textContent = "Enter the local model's name.";
+  const r = await api("/api/agents/save", body);
+  if (r.error) return $("aError").textContent = r.error;
+  agentDlg.close(); await loadState(); goAgents();
+}
+
+async function deleteAgent() {
+  if (!confirm(`Delete ${editing.name}? Past messages stay, but it won't be able to reply anymore.`)) return;
+  await api("/api/agents/delete", { id: editing.id }); agentDlg.close(); await loadState(); goAgents();
+}
+
+function openTeam(id) {
+  editingTeam = id ? (S.teams || []).find(t => t.id === id) : null;
+  const t = editingTeam || { name: "", members: [], manager: S.default_manager };
+  $("teamDlgTitle").textContent = editingTeam ? `Edit ${t.name}` : "New team";
+  $("tName").value = t.name; $("tDesc").value = t.description || "";
+  picker("tPick", t.members, t.manager);
+  $("tDelete").hidden = !editingTeam; $("tError").textContent = "";
+  teamDlg.showModal();
+}
+async function saveTeam() {
+  const v = pickValue("tPick");
+  if (!v.members.length) return $("tError").textContent = "Pick at least one member.";
+  const r = await api("/api/teams/save", { id: editingTeam && editingTeam.id, name: $("tName").value,
+    description: $("tDesc").value, members: v.members, manager: v.manager });
+  if (r.error) return $("tError").textContent = r.error;
+  teamDlg.close(); await loadState(); goAgents();
+}
+async function deleteTeam() {
+  if (!confirm(`Delete the team "${editingTeam.name}"? The agents themselves stay.`)) return;
+  await api("/api/teams/delete", { id: editingTeam.id }); teamDlg.close(); await loadState(); goAgents();
+}
+
+/* ---------- settings ---------- */
+function openMembers() {
+  const chat = room.kind === "chat";
+  $("setTitle").textContent = chat ? "Chat settings" : "Project settings";
+  $("projectSettings").hidden = chat; $("editTitle").value = room.title;
+  if (!chat) {
+    picker("editPick", room.members, room.manager);
+    $("editHandoffs").value = String(room.max_handoffs ?? 3);
+  }
+  membersDlg.showModal();
+}
+async function saveMembers() {
+  const body = { title: $("editTitle").value };
+  if (room.kind !== "chat") Object.assign(body, { ...pickValue("editPick"), max_handoffs: +$("editHandoffs").value });
+  await post("settings", body); selected = new Set(room.members); membersDlg.close(); lastSig = ""; render();
+}
+async function deleteRoom() {
+  if (!confirm(`Delete "${room.title}" and its whole conversation?`)) return;
+  await api(`/api/rooms/${room.id}/delete`, {}); membersDlg.close(); goHome();
+}
+async function openProfile() { $("profileText").value = (await api("/api/profile")).text; profileDlg.showModal(); }
+async function saveProfile() { await api("/api/profile", { text: $("profileText").value }); profileDlg.close(); }
+
+$("input").addEventListener("keydown", e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) send(true); });
+const route = () => { const h = location.hash.slice(1); h === "agents" ? goAgents() : h ? openRoom(h) : goHome(); };
+window.addEventListener("hashchange", route);
+setInterval(() => { if (room) openRoom(room.id); else loadState(); }, 1500);
+loadState().then(route);
+</script>
+</body>
+</html>

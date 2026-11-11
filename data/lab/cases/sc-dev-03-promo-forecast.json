@@ -1,0 +1,117 @@
+{
+  "id": "sc-dev-03-promo-forecast",
+  "split": "dev",
+  "difficulty": "easy",
+  "title": "Promotion missing from the forecast",
+  "brief": "UK web orders for SKU B-150 (blender) have been backordered since 5 Nov while other SKUs are fine. Find the root cause and an action plan.",
+  "evidence": [
+    {
+      "id": "E1",
+      "owner": "demand",
+      "release_round": 1,
+      "type": "clue",
+      "source": "Order history",
+      "content": "UK web orders for B-150 from 3 to 9 Nov: 2,400 units vs a forecast of 800."
+    },
+    {
+      "id": "E2",
+      "owner": "demand",
+      "release_round": 2,
+      "type": "clue",
+      "source": "Marketing calendar",
+      "content": "Marketing ran a 30%-off 'Bonfire Week' web promotion on B-150 from 3 Nov. It was not entered in the demand-planning promotion calendar."
+    },
+    {
+      "id": "E3",
+      "owner": "inventory",
+      "release_round": 1,
+      "type": "clue",
+      "source": "WMS stock report, Coventry DC",
+      "content": "B-150 on-hand at Coventry has been 0 since 5 Nov. Safety stock is 250 units, sized for normal weekly variability."
+    },
+    {
+      "id": "E4",
+      "owner": "logistics",
+      "release_round": 1,
+      "type": "context",
+      "source": "Inbound tracker",
+      "content": "Inbound B-150 flows are on plan; no transport delays."
+    },
+    {
+      "id": "E5",
+      "owner": "supplier",
+      "release_round": 1,
+      "type": "context",
+      "source": "Supplier offer",
+      "content": "The supplier is on time. Extra options: 1,500 units by sea in 3 weeks, or 500 units by air in 6 days at +EUR 4/unit."
+    }
+  ],
+  "answer_key": {
+    "root_cause": "An unplanned marketing promotion (not in the demand-planning calendar) tripled B-150 demand, consuming stock and safety stock and causing backorders.",
+    "cause_keywords": [
+      [
+        "promotion",
+        "promo",
+        "marketing"
+      ],
+      [
+        "forecast",
+        "calendar",
+        "not planned",
+        "unplanned"
+      ]
+    ],
+    "required_evidence": [
+      "E1",
+      "E2",
+      "E3"
+    ],
+    "supporting_evidence": [
+      "E4",
+      "E5"
+    ],
+    "remediation_rubric": [
+      {
+        "criterion": "Expedite supply (air 500 + sea 1,500 or similar) and quantify cost",
+        "points": 2
+      },
+      {
+        "criterion": "Manage demand: pause/limit the promotion or manage backorders and customer communication",
+        "points": 2
+      },
+      {
+        "criterion": "Process fix: promotions must be in the demand calendar / S&OP sign-off",
+        "points": 3
+      },
+      {
+        "criterion": "Rebalance stock from other channels or DCs",
+        "points": 1
+      },
+      {
+        "criterion": "Review safety-stock policy for promoted items",
+        "points": 2
+      }
+    ],
+    "notes": "Logistics and supplier are rule-outs; supplier evidence also gives the expedite options."
+  },
+  "registry": {
+    "features": [
+      "negative_control"
+    ],
+    "mechanism_opportunities": "Mostly a single-domain (demand) cause; little to forward.",
+    "expected_timing": "Solvable in round 2.",
+    "favoritism_notes": "Low coordination need; protocol overhead should show up as pure cost."
+  },
+  "domain": "supply",
+  "author": "Claude (AI draft)",
+  "status": "draft",
+  "created": 1794424507.8700545,
+  "history": [
+    {
+      "t": 1794424507.8700545,
+      "event": "created",
+      "by": "Claude (AI draft)"
+    }
+  ],
+  "updated": 1794424507.8700545
+}

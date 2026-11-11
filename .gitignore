@@ -1,0 +1,17 @@
+# --- personal / runtime data: stays on this PC -------------------------------
+# chat & project conversations, Lab runs/traces, studies, memory, logs, app browser data
+data/*
+# ...except the Lab's test cases (the benchmark) which are part of the project
+!data/lab/
+data/lab/*
+!data/lab/cases/
+# your personal profile (see profile.example.md)
+profile.md
+# files the Builder agent writes
+shared/
+
+# --- generated -----------------------------------------------------------------
+__pycache__/
+*.pyc
+*.tmp
+*.log

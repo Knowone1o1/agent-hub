@@ -1,0 +1,127 @@
+{
+  "id": "sc-dev-02-quality-hold",
+  "split": "dev",
+  "difficulty": "medium",
+  "title": "Kettles never shipped after a silent quality hold",
+  "brief": "US retail customers report that SKU K-310 (kettle) has been out of stock at the Chicago DC since 3 Nov, two weeks earlier than planned. Find the root cause and an action plan.",
+  "evidence": [
+    {
+      "id": "E1",
+      "owner": "demand",
+      "release_round": 1,
+      "type": "context",
+      "source": "Demand planning report",
+      "content": "US K-310 sell-out over the last 4 weeks was 6% above forecast, inside tolerance. No promotions."
+    },
+    {
+      "id": "E2",
+      "owner": "inventory",
+      "release_round": 1,
+      "type": "clue",
+      "source": "WMS / ERP replenishment view",
+      "content": "Chicago K-310 on-hand 0 since 3 Nov. Replenishment PO 4471 (1,200 units) was due in on 27 Oct and has not been received; no ASN exists for it."
+    },
+    {
+      "id": "E3",
+      "owner": "supplier",
+      "release_round": 1,
+      "type": "context",
+      "source": "Supplier portal",
+      "content": "Hanoi Appliance confirmed PO 4471 on 2 Oct with ship date 6 Oct. The portal still shows status 'confirmed'."
+    },
+    {
+      "id": "E4",
+      "owner": "logistics",
+      "release_round": 2,
+      "type": "clue",
+      "source": "Freight forwarder booking system",
+      "content": "There is no booking for PO 4471. The forwarder never received cargo-ready notice from Hanoi Appliance."
+    },
+    {
+      "id": "E5",
+      "owner": "supplier",
+      "release_round": 2,
+      "type": "clue",
+      "source": "Supplier QA report (obtained on request)",
+      "content": "Supplier QA put lot K310-L9 (all 1,200 units of PO 4471) on hold on 4 Oct after a 3% thermostat failure rate at pre-shipment inspection. Rework is expected to finish 21 Nov. The buyer was not notified."
+    },
+    {
+      "id": "E6",
+      "owner": "inventory",
+      "release_round": 3,
+      "type": "distractor",
+      "source": "Cycle count",
+      "content": "A cycle count at Chicago on 1 Nov matched the system for all kettle SKUs (no phantom stock)."
+    }
+  ],
+  "answer_key": {
+    "root_cause": "The supplier put the whole PO 4471 lot on quality hold (thermostat failures) on 4 Oct and never told the buyer, so the replenishment never shipped while the portal still showed it as confirmed.",
+    "cause_keywords": [
+      [
+        "quality",
+        "qa",
+        "thermostat",
+        "inspection"
+      ],
+      [
+        "hold",
+        "not shipped",
+        "never shipped",
+        "no booking"
+      ]
+    ],
+    "required_evidence": [
+      "E2",
+      "E4",
+      "E5"
+    ],
+    "supporting_evidence": [
+      "E1",
+      "E3"
+    ],
+    "remediation_rubric": [
+      {
+        "criterion": "Get a firm rework date and ship good units early / partial shipment",
+        "points": 3
+      },
+      {
+        "criterion": "Bridge the gap: transfer from another DC, air-freight part of the lot, or substitute SKU",
+        "points": 2
+      },
+      {
+        "criterion": "Allocate scarce stock and tell customers revised dates",
+        "points": 1
+      },
+      {
+        "criterion": "Require suppliers to notify quality holds; track confirmed POs against bookings/ASNs",
+        "points": 2
+      },
+      {
+        "criterion": "Follow up on the thermostat quality root cause / inspection plan",
+        "points": 2
+      }
+    ],
+    "notes": "E3 ('confirmed') is stale, not false. E6 rules out phantom stock."
+  },
+  "registry": {
+    "features": [
+      "unknown_downstream_need",
+      "cross_specialist_dependency"
+    ],
+    "mechanism_opportunities": "V2: Inventory may not realise the supplier QA detail matters. V3: E4/E5 contradict the 'confirmed' status in E3.",
+    "expected_timing": "Cause visible from round 2 (E4+E5).",
+    "favoritism_notes": "Slightly favours protocols that let Supplier and Logistics findings meet quickly (V1)."
+  },
+  "domain": "supply",
+  "author": "Claude (AI draft)",
+  "status": "draft",
+  "created": 1794424507.8680546,
+  "history": [
+    {
+      "t": 1794424507.8680546,
+      "event": "created",
+      "by": "Claude (AI draft)"
+    }
+  ],
+  "updated": 1794424507.8680546
+}

@@ -1,0 +1,115 @@
+{
+  "id": "sc-dev-01-customs-hold",
+  "split": "dev",
+  "difficulty": "easy",
+  "title": "Stand mixers stuck at customs",
+  "brief": "EU customers' orders for SKU A-200 (stand mixer) are being cut short since Monday 10 Nov. Find the root cause and an action plan.",
+  "evidence": [
+    {
+      "id": "E1",
+      "owner": "demand",
+      "release_round": 1,
+      "type": "context",
+      "source": "Demand planning report",
+      "content": "EU orders for A-200 last week were 1,050 units vs a forecast of 1,000 (inside the normal ±10% band). No promotions or new customers."
+    },
+    {
+      "id": "E2",
+      "owner": "inventory",
+      "release_round": 1,
+      "type": "clue",
+      "source": "WMS stock report, Rotterdam DC",
+      "content": "A-200 on-hand at Rotterdam has been 0 since Mon 10 Nov. The ERP shows 400 units in transit with ETA Fri 7 Nov; ATP treats them as available, so orders are accepted and then cut at picking."
+    },
+    {
+      "id": "E3",
+      "owner": "logistics",
+      "release_round": 1,
+      "type": "clue",
+      "source": "Customs broker status feed",
+      "content": "Container MSKU-77 (400 x A-200) has been held at Rotterdam customs since 6 Nov. Reason code: certificate of origin missing or invalid."
+    },
+    {
+      "id": "E4",
+      "owner": "supplier",
+      "release_round": 2,
+      "type": "clue",
+      "source": "Supplier e-mail, Ningbo Kitchen Co.",
+      "content": "The 400 units shipped on time on 20 Oct. A new EU certificate-of-origin format became mandatory on 1 Nov; we have not issued the new-format certificate for this shipment yet. We can issue it within 2 working days once you confirm the consignee details."
+    },
+    {
+      "id": "E5",
+      "owner": "logistics",
+      "release_round": 2,
+      "type": "context",
+      "source": "Carrier schedule",
+      "content": "The ocean leg arrived on schedule; the vessel discharged at Rotterdam on 5 Nov."
+    }
+  ],
+  "answer_key": {
+    "root_cause": "Container MSKU-77 with the 400 replenishment units is held at Rotterdam customs because the supplier has not issued the certificate of origin in the format required since 1 Nov; planning still counts the units as available, so orders are accepted and then cut.",
+    "cause_keywords": [
+      [
+        "customs"
+      ],
+      [
+        "certificate",
+        "origin",
+        "documentation",
+        "document"
+      ]
+    ],
+    "required_evidence": [
+      "E2",
+      "E3",
+      "E4"
+    ],
+    "supporting_evidence": [
+      "E1",
+      "E5"
+    ],
+    "remediation_rubric": [
+      {
+        "criterion": "Get the supplier to issue the new-format certificate and the broker to file it for release",
+        "points": 3
+      },
+      {
+        "criterion": "Cover EU orders meanwhile: reallocate from another DC or expedite stock",
+        "points": 2
+      },
+      {
+        "criterion": "Stop counting held/overdue in-transit stock as available to promise",
+        "points": 2
+      },
+      {
+        "criterion": "Communicate revised dates to affected customers / prioritise orders",
+        "points": 1
+      },
+      {
+        "criterion": "Prevent recurrence: check new documentation rules with suppliers before shipping",
+        "points": 2
+      }
+    ],
+    "notes": "Demand is a deliberate rule-out. Full credit needs the customs hold AND the documentation cause."
+  },
+  "registry": {
+    "features": [
+      "cross_specialist_dependency"
+    ],
+    "mechanism_opportunities": "V1: Logistics -> Inventory 'delay/arrival' path is directly useful. V3: Inventory's 'in transit, available' belief is contradicted by E3.",
+    "expected_timing": "Solvable from round 2 once E4 arrives; E2+E3 already point to customs in round 1.",
+    "favoritism_notes": "Simple case; all protocols should solve it. Mainly a calibration case."
+  },
+  "domain": "supply",
+  "author": "Claude (AI draft)",
+  "status": "draft",
+  "created": 1794424507.7568467,
+  "history": [
+    {
+      "t": 1794424507.7568467,
+      "event": "created",
+      "by": "Claude (AI draft)"
+    }
+  ],
+  "updated": 1794424507.8630545
+}

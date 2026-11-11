@@ -1,0 +1,129 @@
+{
+  "id": "sc-ho-08-allocation-rule",
+  "split": "heldout",
+  "difficulty": "medium",
+  "title": "A system upgrade changed the allocation rule",
+  "brief": "Key account HomeMart receives only 60% of its ordered quantity of SKU R-250 (rice cooker) from the Antwerp DC, while smaller accounts get 100%. Find the root cause and an action plan.",
+  "evidence": [
+    {
+      "id": "E1",
+      "owner": "inventory",
+      "release_round": 1,
+      "type": "clue",
+      "source": "Allocation report, Antwerp DC",
+      "content": "R-250 available this week: 6,000 units. HomeMart ordered 5,000 and received 3,000; other accounts ordered 3,000 and received all 3,000."
+    },
+    {
+      "id": "E2",
+      "owner": "inventory",
+      "release_round": 2,
+      "type": "clue",
+      "source": "Order-system release notes",
+      "content": "The order-system upgrade on 3 Nov replaced the 'fair share by order week' allocation rule with 'first come, first served by order timestamp'."
+    },
+    {
+      "id": "E3",
+      "owner": "demand",
+      "release_round": 1,
+      "type": "clue",
+      "source": "Order pattern analysis",
+      "content": "HomeMart places one weekly order every Thursday at 18:00; smaller accounts order daily in the morning."
+    },
+    {
+      "id": "E4",
+      "owner": "logistics",
+      "release_round": 1,
+      "type": "context",
+      "source": "Monthly transport KPI pack (full)",
+      "content": "On-time delivery 98.1%; damages 0.2%; average truck fill 87%; 412 shipments; 9 carriers; CO2 per pallet down 3%; detention hours 61; claims 4 (EUR 2,300); lane Antwerp-Rotterdam fill 91%; lane Antwerp-Lille fill 84%; lane Antwerp-Cologne fill 79%; fuel surcharge +1.2%; two near-miss incidents at the yard; new dock scheduling tool live 20 Oct; no capacity constraints reported; no delays on HomeMart deliveries."
+    },
+    {
+      "id": "E5",
+      "owner": "supplier",
+      "release_round": 1,
+      "type": "context",
+      "source": "Supply status",
+      "content": "Supply is sufficient; the supplier shipped full PO quantities."
+    },
+    {
+      "id": "E6",
+      "owner": "demand",
+      "release_round": 2,
+      "type": "context",
+      "source": "Contract terms",
+      "content": "HomeMart's contract has a 95% fill-rate SLA, with a penalty of 2% of invoice value for each week below target."
+    }
+  ],
+  "answer_key": {
+    "root_cause": "The 3 Nov order-system upgrade switched allocation to first-come-first-served by timestamp, so accounts that order daily in the morning consume stock before HomeMart's weekly Thursday-evening order.",
+    "cause_keywords": [
+      [
+        "allocation",
+        "first come",
+        "first-come",
+        "fcfs",
+        "timestamp"
+      ],
+      [
+        "upgrade",
+        "order system",
+        "rule"
+      ]
+    ],
+    "required_evidence": [
+      "E1",
+      "E2",
+      "E3"
+    ],
+    "supporting_evidence": [
+      "E6",
+      "E4",
+      "E5"
+    ],
+    "remediation_rubric": [
+      {
+        "criterion": "Restore fair-share allocation or reserve stock for key accounts",
+        "points": 3
+      },
+      {
+        "criterion": "Ship HomeMart's shortfall with priority",
+        "points": 2
+      },
+      {
+        "criterion": "Quantify SLA penalty exposure and inform the account team",
+        "points": 2
+      },
+      {
+        "criterion": "Change control/testing for order-system rule changes",
+        "points": 2
+      },
+      {
+        "criterion": "Check other accounts affected by the rule change",
+        "points": 1
+      }
+    ],
+    "notes": "E4 is long and irrelevant; the cause needs inventory + demand evidence together."
+  },
+  "registry": {
+    "features": [
+      "relay_heavy",
+      "low_use_detail",
+      "cross_specialist_dependency"
+    ],
+    "mechanism_opportunities": "V2 saves cost on E4 (nobody needs it). Demand -> Inventory evidence must combine (V1 path).",
+    "expected_timing": "Cause needs E2 (round 2) with E3.",
+    "favoritism_notes": "Favours V2 and V1; balanced by HO-03 (V2 risk) and HO-05 (D0 synthesis)."
+  },
+  "domain": "supply",
+  "author": "Claude (AI draft)",
+  "status": "draft",
+  "created": 1794424507.8800886,
+  "history": [
+    {
+      "t": 1794424507.8800886,
+      "event": "created",
+      "by": "Claude (AI draft)"
+    }
+  ],
+  "updated": 1794424507.8800886
+}

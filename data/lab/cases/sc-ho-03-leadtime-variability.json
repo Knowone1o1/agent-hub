@@ -1,0 +1,121 @@
+{
+  "id": "sc-ho-03-leadtime-variability",
+  "split": "heldout",
+  "difficulty": "hard",
+  "title": "Safety stock that ignores lead-time variability",
+  "brief": "Safety stock for SKU T-330 (toaster) keeps running out at the Lyon DC even though average demand and average lead time have not changed. Find the root cause and an action plan.",
+  "evidence": [
+    {
+      "id": "E1",
+      "owner": "inventory",
+      "release_round": 1,
+      "type": "clue",
+      "source": "Inventory policy sheet",
+      "content": "Lyon T-330 had stock-outs in 4 of the last 8 weeks. Safety stock is 400 units, set in January using a fixed 21-day lead time and demand variability only."
+    },
+    {
+      "id": "E2",
+      "owner": "logistics",
+      "release_round": 1,
+      "type": "clue",
+      "source": "Quarterly transport review (full report)",
+      "content": "Lanes reviewed: 14. Carriers: OceanOne, BlueSea, RailFrance, TransAlp. On-time rate 93% overall; damage rate 0.4%; CO2 per container down 6%; three invoice disputes open with TransAlp (EUR 4,200 total); pallet-height non-compliance at 2 suppliers; reefer usage n/a; demurrage EUR 11k YTD; average port dwell 3.1 days; customs pre-clearance rate 88%; Ningbo -> Lyon lane: mean door-to-door lead time 21 days (unchanged), but range 14-35 days over the last 6 months, standard deviation 7 days (last year 2 days); packaging recommendation: switch to 5-ply cartons on two lanes; driver detention charges flat; next review in February."
+    },
+    {
+      "id": "E3",
+      "owner": "demand",
+      "release_round": 1,
+      "type": "context",
+      "source": "Demand report",
+      "content": "T-330 demand at Lyon is stable at about 300 units/week, coefficient of variation 0.15."
+    },
+    {
+      "id": "E4",
+      "owner": "supplier",
+      "release_round": 1,
+      "type": "context",
+      "source": "Supplier performance",
+      "content": "The supplier ships weekly on schedule; supplier-side lead time is stable."
+    },
+    {
+      "id": "E5",
+      "owner": "logistics",
+      "release_round": 2,
+      "type": "clue",
+      "source": "Routing change log",
+      "content": "In May the transshipment port for the Ningbo -> Lyon lane changed from Marseille to Genoa; the Genoa -> Lyon rail leg has frequent multi-day delays."
+    }
+  ],
+  "answer_key": {
+    "root_cause": "Lead-time variability on the Ningbo-Lyon lane rose sharply (std dev 2 -> 7 days) after the transshipment port moved from Marseille to Genoa, but safety stock is still calculated with a fixed 21-day lead time and ignores lead-time variability.",
+    "cause_keywords": [
+      [
+        "variability",
+        "variance",
+        "standard deviation",
+        "std",
+        "range"
+      ],
+      [
+        "lead time",
+        "lead-time"
+      ],
+      [
+        "safety stock"
+      ]
+    ],
+    "required_evidence": [
+      "E1",
+      "E2",
+      "E5"
+    ],
+    "supporting_evidence": [
+      "E3",
+      "E4"
+    ],
+    "remediation_rubric": [
+      {
+        "criterion": "Recalculate safety stock including lead-time variability",
+        "points": 3
+      },
+      {
+        "criterion": "Short-term top-up of T-330 at Lyon",
+        "points": 2
+      },
+      {
+        "criterion": "Fix the lane: review Genoa routing / rail reliability or return to Marseille",
+        "points": 2
+      },
+      {
+        "criterion": "Track lead-time variance as a KPI and review policies regularly",
+        "points": 2
+      },
+      {
+        "criterion": "Check other SKUs on the same lane",
+        "points": 1
+      }
+    ],
+    "notes": "The key number is buried in a long, mostly irrelevant report (E2)."
+  },
+  "registry": {
+    "features": [
+      "low_use_detail",
+      "unknown_downstream_need"
+    ],
+    "mechanism_opportunities": "V2: a short notice for E2 may hide the one relevant number; if nobody pulls it, the cause is missed. D0 forwards the whole report at higher cost.",
+    "expected_timing": "Cause available from round 1 if E2 is read carefully; E5 (round 2) explains it.",
+    "favoritism_notes": "Designed as a risk case for V2 (unknown need). Balanced by HO-08 where V2 saves cost."
+  },
+  "domain": "supply",
+  "author": "Claude (AI draft)",
+  "status": "draft",
+  "created": 1794424507.8750541,
+  "history": [
+    {
+      "t": 1794424507.8750541,
+      "event": "created",
+      "by": "Claude (AI draft)"
+    }
+  ],
+  "updated": 1794424507.8750541
+}

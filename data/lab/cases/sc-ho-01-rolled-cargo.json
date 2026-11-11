@@ -1,0 +1,138 @@
+{
+  "id": "sc-ho-01-rolled-cargo",
+  "split": "heldout",
+  "difficulty": "hard",
+  "title": "Air fryers rolled to a later vessel",
+  "brief": "German B2B customers are missing deliveries of SKU F-900 (air fryer) this week. Find the root cause and an action plan.",
+  "evidence": [
+    {
+      "id": "E1",
+      "owner": "logistics",
+      "release_round": 1,
+      "type": "distractor",
+      "source": "Industry news feed",
+      "content": "A dock strike at the port of Hamburg has delayed many vessels since 8 Nov."
+    },
+    {
+      "id": "E2",
+      "owner": "inventory",
+      "release_round": 1,
+      "type": "clue",
+      "source": "WMS / ERP, Duisburg DC",
+      "content": "F-900 on-hand at Duisburg is 120 units against 1,400 units of open B2B orders. The next inbound, PO 5520 (2,000 units), is expected 12 Nov."
+    },
+    {
+      "id": "E3",
+      "owner": "supplier",
+      "release_round": 1,
+      "type": "context",
+      "source": "Supplier production update",
+      "content": "Production of PO 5520 was completed on 25 Oct."
+    },
+    {
+      "id": "E4",
+      "owner": "logistics",
+      "release_round": 2,
+      "type": "clue",
+      "source": "Booking system",
+      "content": "PO 5520 is booked on vessel MAERSK ELBA, Ningbo -> Rotterdam, then rail to Duisburg; ETA Duisburg 12 Nov."
+    },
+    {
+      "id": "E5",
+      "owner": "supplier",
+      "release_round": 2,
+      "type": "clue",
+      "source": "Supplier e-mail",
+      "content": "We missed the 27 Oct cut-off for MAERSK ELBA: the export carton labels failed your retailer's labelling compliance check and had to be reprinted. The cargo was rolled to the next sailing."
+    },
+    {
+      "id": "E6",
+      "owner": "logistics",
+      "release_round": 3,
+      "type": "correction",
+      "source": "Forwarder correction notice",
+      "content": "Correction: our booking system was not updated after the roll. PO 5520 is now on MSC ANNA, departing Ningbo 10 Nov, ETA Rotterdam 12 Dec.",
+      "corrects": "E4"
+    },
+    {
+      "id": "E7",
+      "owner": "demand",
+      "release_round": 1,
+      "type": "context",
+      "source": "Demand report",
+      "content": "German B2B demand for F-900 is in line with forecast."
+    }
+  ],
+  "answer_key": {
+    "root_cause": "PO 5520 missed its vessel cut-off because the supplier's carton labels failed retailer compliance and had to be reprinted; the cargo was rolled to a sailing arriving about a month later, while the booking system still showed the old ETA. The Hamburg strike is unrelated (the cargo routes via Rotterdam).",
+    "cause_keywords": [
+      [
+        "label",
+        "labelling",
+        "labeling",
+        "compliance"
+      ],
+      [
+        "rolled",
+        "missed",
+        "cut-off",
+        "cutoff",
+        "next vessel",
+        "later vessel"
+      ]
+    ],
+    "required_evidence": [
+      "E2",
+      "E5",
+      "E6"
+    ],
+    "supporting_evidence": [
+      "E3",
+      "E7"
+    ],
+    "remediation_rubric": [
+      {
+        "criterion": "Bridge the ~1 month gap: air-freight part of the volume or reallocate from other EU DCs",
+        "points": 3
+      },
+      {
+        "criterion": "Allocate available stock across B2B customers and communicate revised dates",
+        "points": 2
+      },
+      {
+        "criterion": "Check labelling compliance with the supplier before cut-off",
+        "points": 2
+      },
+      {
+        "criterion": "Fix ETA visibility: forwarder must update bookings after a roll",
+        "points": 2
+      },
+      {
+        "criterion": "Explicitly rules out the Hamburg strike",
+        "points": 1
+      }
+    ],
+    "notes": "E1 is a tempting distractor; E4 is stale and corrected by E6 in round 3."
+  },
+  "registry": {
+    "features": [
+      "late_correction",
+      "cross_specialist_dependency"
+    ],
+    "mechanism_opportunities": "V3: E6 corrects E4; an alert can stop the team relying on the 12 Nov ETA. D0 may propagate the stale ETA.",
+    "expected_timing": "Plausible but wrong answers possible in round 2; full answer needs E6 (round 3).",
+    "favoritism_notes": "Could favour V3 (correction handling). Balanced by HO-06 and HO-02, where alerts are useless."
+  },
+  "domain": "supply",
+  "author": "Claude (AI draft)",
+  "status": "draft",
+  "created": 1794424507.8730547,
+  "history": [
+    {
+      "t": 1794424507.8730547,
+      "event": "created",
+      "by": "Claude (AI draft)"
+    }
+  ],
+  "updated": 1794424507.8730547
+}

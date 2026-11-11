@@ -1,0 +1,3 @@
+# The hub engine itself uses only the Python standard library.
+# The native desktop window (desktop/app.py) needs:
+pythonnet>=3.0

@@ -1,0 +1,135 @@
+{
+  "id": "sc-dev-04-phantom-stock",
+  "split": "dev",
+  "difficulty": "medium",
+  "title": "Phantom stock after an auto-receipt",
+  "brief": "Store replenishment orders for SKU P-420 (pan set) from the Madrid DC are shipping short, although the system shows 900 units in stock. Find the root cause and an action plan.",
+  "evidence": [
+    {
+      "id": "E1",
+      "owner": "inventory",
+      "release_round": 1,
+      "type": "clue",
+      "source": "WMS stock report, Madrid DC",
+      "content": "WMS shows 900 P-420 on hand in Madrid, all in bin 12-B."
+    },
+    {
+      "id": "E2",
+      "owner": "inventory",
+      "release_round": 2,
+      "type": "clue",
+      "source": "Picking exception log",
+      "content": "Pickers raised 'empty bin' exceptions for P-420 on 14 of 20 picks this week. Bin 12-B is physically empty."
+    },
+    {
+      "id": "E3",
+      "owner": "logistics",
+      "release_round": 1,
+      "type": "clue",
+      "source": "Receiving log",
+      "content": "The last P-420 receipt was ASN 7781 on 22 Oct: 900 units booked into Madrid by ASN auto-receipt (no physical count at the dock)."
+    },
+    {
+      "id": "E4",
+      "owner": "logistics",
+      "release_round": 2,
+      "type": "clue",
+      "source": "Carrier proof of delivery",
+      "content": "Proof of delivery for ASN 7781 shows 0 pallets delivered to Madrid: the truck was rerouted to the Valencia DC on 22 Oct because of dock congestion."
+    },
+    {
+      "id": "E5",
+      "owner": "supplier",
+      "release_round": 1,
+      "type": "context",
+      "source": "Supplier invoice",
+      "content": "The supplier invoiced 900 units of P-420 shipped on 20 Oct."
+    },
+    {
+      "id": "E6",
+      "owner": "demand",
+      "release_round": 1,
+      "type": "context",
+      "source": "Store demand report",
+      "content": "Store demand for P-420 is in line with forecast."
+    },
+    {
+      "id": "E7",
+      "owner": "inventory",
+      "release_round": 3,
+      "type": "clue",
+      "source": "Message from Valencia DC",
+      "content": "Valencia DC reports 900 unidentified P-420 units received on 23 Oct, sitting in quarantine because no ASN matched them."
+    }
+  ],
+  "answer_key": {
+    "root_cause": "ASN auto-receipt booked 900 P-420 units into Madrid that were physically delivered to Valencia (rerouted truck), creating phantom stock in Madrid; the real units sit in quarantine in Valencia.",
+    "cause_keywords": [
+      [
+        "auto-receipt",
+        "asn",
+        "booked",
+        "receipt"
+      ],
+      [
+        "valencia",
+        "rerouted",
+        "phantom",
+        "not delivered"
+      ]
+    ],
+    "required_evidence": [
+      "E2",
+      "E3",
+      "E4"
+    ],
+    "supporting_evidence": [
+      "E1",
+      "E7",
+      "E5"
+    ],
+    "remediation_rubric": [
+      {
+        "criterion": "Transfer the quarantined units from Valencia to Madrid",
+        "points": 3
+      },
+      {
+        "criterion": "Correct Madrid's inventory record (cycle count / adjustment)",
+        "points": 2
+      },
+      {
+        "criterion": "Stop auto-receipt without physical confirmation, or reconcile ASNs with proof of delivery",
+        "points": 3
+      },
+      {
+        "criterion": "Handle short-shipped store orders (backorders, communication)",
+        "points": 1
+      },
+      {
+        "criterion": "Make carriers notify reroutes to the receiving DC",
+        "points": 1
+      }
+    ],
+    "notes": "E7 arrives late and confirms where the stock went."
+  },
+  "registry": {
+    "features": [
+      "cross_specialist_dependency"
+    ],
+    "mechanism_opportunities": "V1: Logistics -> Inventory findings are central. V3: E4 contradicts the receipt booked in E3. E7 (round 3) adds where the stock went.",
+    "expected_timing": "Cause clear from round 2; E7 in round 3 completes the action plan.",
+    "favoritism_notes": "E7 rewards teams that keep going after a plausible answer."
+  },
+  "domain": "supply",
+  "author": "Claude (AI draft)",
+  "status": "draft",
+  "created": 1794424507.872055,
+  "history": [
+    {
+      "t": 1794424507.872055,
+      "event": "created",
+      "by": "Claude (AI draft)"
+    }
+  ],
+  "updated": 1794424507.872055
+}
