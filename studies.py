@@ -34,7 +34,7 @@ STUDIES.mkdir(parents=True, exist_ok=True)
 LOCK = threading.RLock()
 RUNNER = {"study_id": None, "thread": None, "pause": False, "stop": False}
 CAP_REASONS = ("round_cap", "budget_cap", "time_cap")
-CONDITIONS = ("D0", "V1", "V2", "V3")
+CONDITIONS = tuple(k for k in lab.PROTOCOLS if k != "free")   # D0, V1-V3, A1-A2, B1-B2
 
 
 def _path(sid):
@@ -360,6 +360,12 @@ def feasibility_passed(network_id):
 
 # ------------------------------------------------------------------ analysis
 
+def _mean(runs, key):
+    vals = [(r.get("protocol_metrics") or {}).get(key) for r in runs]
+    vals = [v for v in vals if v is not None]
+    return round(sum(vals) / len(vals), 3) if vals else None
+
+
 def _metrics_row(runs):
     """Aggregate a list of (final, scored) study runs."""
     n = len(runs)
@@ -382,6 +388,11 @@ def _metrics_row(runs):
         "unused_notices": pm("unused_notices"), "unused_detail_chars": pm("unused_detail_chars"), "pull_requests": pm("pull_requests"),
         "alerts": pm("alerts"), "false_alarms": pm("false_alarms"), "paused_agent_rounds": pm("paused_agent_rounds"),
         "blocked": pm("blocked"), "malformed": pm("malformed"), "retries": pm("retries"),
+        "a1_forwarded": pm("a1_forwarded"), "a1_inhibited": pm("a1_inhibited"),
+        "a2_grounded_share": _mean(runs, "a2_grounded_share"), "mean_message_chars": _mean(runs, "mean_message_chars"),
+        "b1_switches": pm("b1_switches"), "b1_direct_flat_msgs": pm("b1_direct_flat_msgs"),
+        "b2_nudges": pm("b2_nudges"), "b2_gate_holds": pm("b2_gate_holds"),
+        "evidence_share_mean": _mean(runs, "evidence_share_mean"), "evidence_share_min": _mean(runs, "evidence_share_min"),
         "cap_terminations": sum(1 for r in runs if r.get("end_reason") in CAP_REASONS),
         "mean_seconds": round(sum(r["totals"].get("seconds", 0) for r in runs) / n, 1) if n else None,
         "mean_rounds": round(sum(r.get("round", 0) for r in runs) / n, 2) if n else None,
@@ -461,12 +472,15 @@ def analyze(sid, boot=2000):
 
 # ------------------------------------------------------------------ exports
 
+EXTRA_METRICS = ["a1_forwarded", "a1_inhibited", "a1_cancellation_ratio", "a2_grounded_share", "mean_message_chars",
+                 "b1_switches", "b1_direct_flat_msgs", "b1_deferred_finals", "b2_nudges", "b2_gate_holds",
+                 "evidence_share_mean", "evidence_share_min"]
 RUN_COLUMNS = ["study_id", "run_id", "plan_order", "condition", "case_id", "case_version", "split", "rep", "seed", "model",
                "end_reason", "rounds", "seconds", "joint_success", "cause_ok", "evidence_ok", "evidence_recall", "remediation_ok",
                "remediation_points", "remediation_max", "cost_usd", "judge_cost_usd", "input_tokens", "output_tokens", "cache_read",
                "cache_write", "calls", "messages", "coordinator_calls", "handoffs", "relay_candidates", "bypasses", "notices",
                "unused_notices", "pull_requests", "alerts", "false_alarms", "paused_agent_rounds", "blocked", "malformed",
-               "retries", "flags", "human_review_points", "attempt_type"]
+               "retries", *EXTRA_METRICS, "flags", "human_review_points", "attempt_type"]
 
 
 def _run_row(r, attempt_type):
@@ -482,7 +496,7 @@ def _run_row(r, attempt_type):
             **{k: t.get(k) for k in ("input_tokens", "output_tokens", "cache_read", "cache_write", "calls")},
             **{k: pm.get(k) for k in ("messages", "coordinator_calls", "handoffs", "relay_candidates", "bypasses", "notices",
                                       "unused_notices", "pull_requests", "alerts", "false_alarms", "paused_agent_rounds",
-                                      "blocked", "malformed", "retries")},
+                                      "blocked", "malformed", "retries", *EXTRA_METRICS)},
             "flags": " | ".join(e.get("flags") or []), "human_review_points": (r.get("human_review") or {}).get("total"),
             "attempt_type": attempt_type}
 

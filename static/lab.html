@@ -63,6 +63,7 @@ textarea { resize: none; }
 #edges path.temp { fill: none; stroke: var(--accent); stroke-width: 2; stroke-dasharray: 6 5; }
 #edges path.e.bypass { stroke: var(--amber); stroke-dasharray: 7 5; opacity: .95; }
 #edges path.e.ignored { stroke-dasharray: 2 6; opacity: .35; }
+#edges path.e.flat { stroke-dasharray: 4 6; opacity: .55; }
 #edges path.e { stroke: currentColor; }
 #edges text.elabel { font-size: 11px; fill: var(--amber); paint-order: stroke; stroke: var(--bg); stroke-width: 4px; pointer-events: none; }
 .warn { border: 1px solid var(--amber); border-radius: 8px; padding: 8px 10px; font-size: 13px; color: var(--amber); }
@@ -275,6 +276,7 @@ table.reg td.c { text-align: center; }
 <div class="cases-view" id="studiesView" hidden>
   <div class="clist">
     <div class="row"><button class="primary" onclick="newStudy('feasibility')">+ Feasibility study</button><button class="primary" onclick="newStudy('main')">+ Main study</button></div>
+    <button onclick="newStudy('feasibility', 'methods')" title="D0 vs the 2 AI-research and 2 business-research methods, on the development cases">+ Method comparison (D0 · A1 · A2 · B1 · B2)</button>
     <p class="hint" style="margin:0">Order: run a feasibility study on development cases first; the main study on held-out cases is unlocked once the gate passes.</p>
     <div id="studyList"></div>
   </div>
@@ -334,7 +336,9 @@ const money = v => v == null ? "—" : v < 0.01 ? `$${v.toFixed(4)}` : `$${v.toF
 const num = v => v == null ? "—" : v >= 10000 ? `${(v / 1000).toFixed(1)}k` : String(v);
 const toast = msg => { const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.append(t); setTimeout(() => t.remove(), 2600); };
 
-let META = null, NETS = [], net = null, sel = null;   // sel: {kind:'node'|'edge', id | from,to}
+let META = null, NETS = [], net = null, sel = null;
+const pname = k => k === "free" ? "Free" : `${k} · ${((META && META.protocol_sources || {})[k] || {}).name || k}`;
+const PCOLORS = { D0: "#7d9cff", V1: "#e0a458", V2: "#3fb27f", V3: "#d97757", A1: "#22b5c9", A2: "#a78bfa", B1: "#e879a6", B2: "#9ccc65" };   // sel: {kind:'node'|'edge', id | from,to}
 let runs = [], viewRun = null, viewEvents = [], viewNext = 0, activeRun = null, deckMode = "run", traceFilter = "";
 let pan = { x: 0, y: 0 }, saveTimer = null;
 
@@ -344,8 +348,10 @@ const nodeById = id => net.nodes.find(n => n.id === id);
 /* ---------------- load ---------------- */
 async function init() {
   META = await api("meta");
-  const PNAMES = { free: "Free", D0: "D0 · coordinator-led", V1: "V1 · relay bypass", V2: "V2 · pull information", V3: "V3 · early escalation" };
-  $("protocol").innerHTML = Object.keys(META.protocols).map(k => `<option value="${k}" title="${esc(META.protocols[k])}">${PNAMES[k]}</option>`).join("");
+  const groups = [["Free", ["free"]], ["Baseline", ["D0"]], ["Proposal variants", ["V1", "V2", "V3"]],
+                  ["AI research", ["A1", "A2"]], ["Business research", ["B1", "B2"]]];
+  $("protocol").innerHTML = groups.map(([g, ks]) => `<optgroup label="${g}">${ks.filter(k => META.protocols[k]).map(k =>
+    `<option value="${k}" title="${esc(META.protocols[k])}">${esc(pname(k))}</option>`).join("")}</optgroup>`).join("");
   $("model").innerHTML = META.models.map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
   $("nnPack").innerHTML = Object.entries(META.packs).map(([k, p]) => `<option value="${k}">${p.name}</option>`).join("");
   await loadNetworks();
@@ -495,23 +501,24 @@ let fromPoll = false;
 
 function edgeKind(e) {
   if (net.protocol === "free" || isCoord(e.from) || isCoord(e.to)) return "normal";
-  return net.protocol === "V1" ? "bypass" : "ignored";
+  return net.protocol === "V1" ? "bypass" : net.protocol === "B1" ? "flat" : "ignored";
 }
 function drawEdges() {
+  if (!net) return;
   const pairs = new Set(net.edges.map(e => e.from + ">" + e.to));
   $("edgeLayer").innerHTML = net.edges.map(e => {
     const a = nodeById(e.from), b = nodeById(e.to); if (!a || !b) return "";
     const bend = pairs.has(e.to + ">" + e.from) ? 18 : 0;
     const d = edgePath(a, b, bend), on = sel && sel.kind === "edge" && sel.from === e.from && sel.to === e.to;
     const k = edgeKind(e);
-    const col = on ? "var(--accent)" : k === "bypass" ? "var(--amber)" : "var(--muted)";
+    const col = on ? "var(--accent)" : k === "bypass" ? "var(--amber)" : k === "flat" ? "#e879a6" : "var(--muted)";
     let label = "";
     if (k === "bypass") {
       const p = center(a), q = center(b), len = Math.hypot(q.x - p.x, q.y - p.y) || 1;
       const lx = (p.x + q.x) / 2 - (q.y - p.y) / len * (bend + 12), ly = (p.y + q.y) / 2 + (q.x - p.x) / len * (bend + 12);
       label = `<text x="${lx}" y="${ly}" text-anchor="middle" class="elabel">${esc((e.topics || []).join(", ") || "any topic")}</text>`;
     }
-    return `<path class="hit" d="${d}" data-edge="${e.from}>${e.to}"><title>${k === "ignored" ? `Ignored under ${net.protocol}: messages are routed via the coordinator` : k === "bypass" ? "V1 bypass path" : ""}</title></path>
+    return `<path class="hit" d="${d}" data-edge="${e.from}>${e.to}"><title>${k === "ignored" ? `Ignored under ${net.protocol}: messages are routed via the coordinator` : k === "bypass" ? "V1 bypass path" : k === "flat" ? "B1: direct line, open in flat rounds only" : ""}</title></path>
       <path class="e ${on ? "sel" : ""} ${k}" id="edge-${e.from}-${e.to}" d="${d}" style="color:${col}" marker-end="url(#arrow)" data-edge="${e.from}>${e.to}"/>${label}`;
   }).join("");
 }
@@ -656,7 +663,9 @@ function renderInspector() {
     const probs = protocolProblems();
     p.innerHTML = `<h4>Network</h4>
       <label class="field"><span>Name</span><input value="${esc(net.name)}" onchange="setNet('name', this.value)"></label>
-      <div class="locked"><b>Protocol ${esc(net.protocol === "free" ? "Free" : net.protocol)}.</b> ${esc(META.protocols[net.protocol])}</div>
+      <div class="locked"><b>Protocol ${esc(pname(net.protocol))}.</b> ${esc(META.protocols[net.protocol])}
+        ${(META.protocol_sources || {})[net.protocol] ? `<br><span class="hint">Source (${esc(META.protocol_sources[net.protocol].family)}): ${esc(META.protocol_sources[net.protocol].source)}
+          ${META.protocol_sources[net.protocol].url ? ` · <a href="${META.protocol_sources[net.protocol].url}" target="_blank">paper</a>` : ""}</span>` : ""}</div>
       ${probs.length ? `<div class="warn">${probs.map(esc).join("<br>")}<br><button style="margin-top:6px" onclick="applyLayout()">Fix: apply ${esc(net.protocol)} layout</button></div>` : ""}
       <div class="metrics"><div class="metric"><b>${net.nodes.length}</b><span>agents</span></div>
         <div class="metric"><b>${net.edges.length}</b><span>connections</span></div>
@@ -740,6 +749,12 @@ function protoSummary(m, proto) {
   if (proto === "V1") rows.push(["Bypasses", m.bypasses], ["Bypass-ineligible", m.bypass_ineligible]);
   if (proto === "V2") rows.push(["Notices", m.notices], ["Pulled", m.pull_requests], ["Never pulled", `${m.unused_notices} (${num(m.unused_detail_chars)} chars)`], ["Avg pull delay", m.avg_pull_delay_rounds != null ? m.avg_pull_delay_rounds + " rounds" : "—"]);
   if (proto === "V3") rows.push(["Alerts", m.alerts], ["Valid / false", `${m.alerts_valid} / ${m.false_alarms}`], ["Timeouts", m.alert_timeouts], ["Paused agent-rounds", m.paused_agent_rounds], ["Avg recovery", m.avg_recovery_rounds != null ? m.avg_recovery_rounds + " rounds" : "—"]);
+  if (proto === "A1") rows.push(["Evidence forwarded / cancelled", `${m.a1_forwarded ?? 0} / ${m.a1_inhibited ?? 0}`], ["Cancellation ratio", m.a1_cancellation_ratio != null ? Math.round(m.a1_cancellation_ratio * 100) + "%" : "—"], ["Wording not forwarded", num(m.a1_stripped_chars || 0) + " chars"], ["Unknown evidence cited", m.a1_invalid_ids ?? 0]);
+  if (proto === "A2") rows.push(["Action-state records (complete)", `${m.a2_records ?? 0} (${m.a2_full_records ?? 0})`], ["Grounded in evidence", m.a2_grounded_share != null ? Math.round(m.a2_grounded_share * 100) + "%" : "—"]);
+  if (proto === "B1") rows.push(["Flat / centralize rounds", `${m.b1_flat_rounds ?? 0} / ${m.b1_centralize_rounds ?? 0}`], ["Mode switches", m.b1_switches ?? 0], ["Direct msgs in flat rounds", m.b1_direct_flat_msgs ?? 0], ["Final answers held", m.b1_deferred_finals ?? 0]);
+  if (proto === "B2") rows.push(["Facilitator nudges", m.b2_nudges ?? 0], ["Decision held by check", m.b2_gate_holds ?? 0]);
+  if (m.evidence_share_mean != null) rows.push(["Private evidence shared (mean / lowest agent)", `${Math.round(m.evidence_share_mean * 100)}% / ${Math.round((m.evidence_share_min || 0) * 100)}%`]);
+  if (m.mean_message_chars != null) rows.push(["Avg message length", `${Math.round(m.mean_message_chars)} chars`]);
   rows.push(["Blocked / malformed / retries", `${m.blocked} / ${m.malformed} / ${m.retries}`]);
   return `<details class="locked"><summary><b>Coordination metrics</b></summary><div class="bars" style="grid-template-columns:1fr auto;margin-top:6px">
     ${rows.map(([l, v]) => `<span>${l}</span><b style="color:var(--text)">${v ?? "—"}</b>`).join("")}</div></details>`;
@@ -822,6 +837,16 @@ function renderTrace() {
         resolution_notice: () => `↪ resolution sent to ${nm(ev.to)}`,
         pause: () => `⏸ ${nm(ev.node)} paused (${esc(ev.alert_id)})`,
         resume: () => `▶ ${nm(ev.node)} resumed`,
+        mode: () => `<b style="color:#e879a6">${ev.mode === "flat" ? "◇ FLAT round: anyone may talk to anyone" : "◆ CENTRALIZE round: positions to the coordinator, who decides"}</b>`,
+        final_deferred: () => `⏳ final answer held until a centralize round`,
+        a1_forward: () => `📄 ${esc(ev.evidence_id)} forwarded verbatim to ${nm(ev.to)} (cited by ${nm(ev.from)})`,
+        a1_inhibited: () => `⊘ ${esc(ev.evidence_id)} to ${nm(ev.to)} cancelled: ${esc(ev.reason)}`,
+        a1_claim: () => `↪ one-line claim from ${nm(ev.from)} to ${nm(ev.to)} (${num(ev.chars)} of ${num(ev.full_chars)} chars)`,
+        a1_stripped: () => `✂ ${nm(ev.from)}'s wording to ${nm(ev.to)} not forwarded (${num(ev.full_chars)} chars)`,
+        a1_invalid_id: () => `✗ ${nm(ev.from)} cited unknown evidence ${esc(ev.evidence_id)}`,
+        b2_nudge: () => `🙋 Facilitator nudges ${nm(ev.to)} (has shared ${Math.round((ev.share || 0) * 100)}% of its evidence)`,
+        b2_gate: () => ev.held ? `🛑 Facilitator holds the decision: unshared ${esc(JSON.stringify(ev.unshared))}, unused ${esc((ev.unused || []).join(", ") || "none")}` : `✅ Facilitator check passed`,
+        sharing_summary: () => `📊 evidence shared: ${Object.entries(ev.stats || {}).map(([k, v]) => `${nm(k)} ${Math.round(v.share * 100)}%`).join(" · ")}`,
       }[ev.what];
       return P ? `<div class="ev call" style="${["alert", "resolution", "alert_timeout"].includes(ev.what) ? "color:var(--amber)" : ""}">${P()}</div>` : "";
     }
@@ -1001,13 +1026,14 @@ const studyIntro = () => `<h2>Studies</h2><p class="hint">A study runs every pro
   cost per joint success, reliability and coordination measures. 1) Create a <b>feasibility study</b> (development cases, at least 10 attempts) and run it;
   the gate needs D0 joint success ≥ 70% and ≤ 10% runs stopped by a limit. 2) Freeze your held-out cases. 3) Create the <b>main study</b>, check the budget, lock it, run it.</p>`;
 
-async function newStudy(kind) {
+async function newStudy(kind, methods) {
   if (!net) return;
   const pool = CASES.filter(c => c.domain === net.pack && c.split === (kind === "feasibility" ? "dev" : "heldout"));
   if (!pool.length) return toast(`No ${kind === "feasibility" ? "development" : "held-out"} cases for this network's role pack.`);
-  const r = await api("studies/new", { network_id: net.id, kind, name: `${kind === "feasibility" ? "Feasibility" : "Main study"}: ${net.name}`,
-    conditions: kind === "feasibility" ? ["D0", "V1", "V2", "V3"] : ["D0", "V1", "V2", "V3"], case_ids: pool.map(c => c.id),
-    repetitions: kind === "feasibility" ? 1 : 3 });
+  const conds = methods === "methods" ? ["D0", "A1", "A2", "B1", "B2"] : ["D0", "V1", "V2", "V3"];
+  const r = await api("studies/new", { network_id: net.id, kind, conditions: conds, case_ids: pool.map(c => c.id),
+    name: `${methods === "methods" ? "Method comparison (D0 vs A1 A2 B1 B2)" : kind === "feasibility" ? "Feasibility" : "Main study"}: ${net.name}`,
+    repetitions: kind === "feasibility" ? (methods === "methods" ? 2 : 1) : 3 });
   if (r.error) return toast(r.error);
   curStudy = null; await loadStudies(); openStudy(r.study.id);
 }
@@ -1034,7 +1060,7 @@ function renderStudy() {
         <label class="field wide"><span>Name</span><input value="${esc(s.name)}" onchange="studyUpdate({name:this.value})"></label>
         <label class="field"><span>Repetitions</span><input type="number" min="1" max="10" value="${s.repetitions}" onchange="studyUpdate({repetitions:+this.value})"></label>
         <label class="field"><span>Ceiling (US$ est.)</span><input type="number" min="1" value="${s.ceiling_usd}" onchange="studyUpdate({ceiling_usd:+this.value})"></label></div>
-      <div class="field"><span>Conditions</span><div class="row">${["D0", "V1", "V2", "V3"].map(c => `<label class="feat"><input type="checkbox" ${s.conditions.includes(c) ? "checked" : ""} onchange="toggleCond('${c}',this.checked)"><span>${c}</span></label>`).join("")}</div></div>
+      <div class="field"><span>Conditions</span><div class="row">${ALLCONDS().map(c => `<label class="feat" title="${esc(META.protocols[c])}"><input type="checkbox" ${s.conditions.includes(c) ? "checked" : ""} onchange="toggleCond('${c}',this.checked)"><span>${esc(pname(c))}</span></label>`).join("")}</div></div>
       <div class="field"><span>Cases (${s.case_ids.length})</span><div class="grid">${myCases.map(c => `<label class="feat wide"><input type="checkbox" ${s.case_ids.includes(c.id) ? "checked" : ""} onchange="toggleCase('${c.id}',this.checked)">
         <span>${esc(c.title)} <span class="st ${c.status}">${c.status}</span> <span class="hint">${c.split}</span></span></label>`).join("")}</div></div>
       <label class="field"><span>If a usage limit is hit, wait (minutes) before resuming</span><input type="number" min="5" value="${s.resume_wait_minutes}" onchange="studyUpdate({resume_wait_minutes:+this.value})" style="width:120px"></label>`
@@ -1087,7 +1113,7 @@ function resultsHtml(a, s) {
   // cost vs success chart (SVG)
   const pts = conds.map(k => ({ k, x: c[k].success_rate, y: c[k].cost_per_success })).filter(p => p.x != null && p.y != null);
   const maxY = Math.max(0.01, ...pts.map(p => p.y)) * 1.15, W = 420, H = 220, L = 50, B = 30;
-  const colors = { D0: "#7d9cff", V1: "#e0a458", V2: "#3fb27f", V3: "#d97757" };
+  const colors = PCOLORS;
   const chart = pts.length ? `<svg width="${W}" height="${H}" style="max-width:100%;background:var(--panel);border:1px solid var(--line);border-radius:10px">
       <text x="${L}" y="16" font-size="11" fill="var(--muted)">cost per joint success (est. $) ↑ · success rate →</text>
       <line x1="${L}" y1="${H - B}" x2="${W - 10}" y2="${H - B}" stroke="var(--line)"/><line x1="${L}" y1="24" x2="${L}" y2="${H - B}" stroke="var(--line)"/>
@@ -1115,6 +1141,12 @@ function resultsHtml(a, s) {
       ${row("V1: relay candidates · bypasses", v => `${v.relay_candidates ?? 0} · ${v.bypasses ?? 0}`)}
       ${row("V2: notices · unused · pulls", v => `${v.notices ?? 0} · ${v.unused_notices ?? 0} · ${v.pull_requests ?? 0}`)}
       ${row("V3: alerts · false alarms · paused rounds", v => `${v.alerts ?? 0} · ${v.false_alarms ?? 0} · ${v.paused_agent_rounds ?? 0}`)}
+      ${row("A1: evidence forwarded · cancelled", v => `${v.a1_forwarded ?? 0} · ${v.a1_inhibited ?? 0}`)}
+      ${row("A2: messages grounded in evidence", v => pct(v.a2_grounded_share))}
+      ${row("B1: mode switches · direct flat msgs", v => `${v.b1_switches ?? 0} · ${v.b1_direct_flat_msgs ?? 0}`)}
+      ${row("B2: nudges · decisions held", v => `${v.b2_nudges ?? 0} · ${v.b2_gate_holds ?? 0}`)}
+      ${row("Private evidence shared (mean / lowest)", v => `${pct(v.evidence_share_mean)} / ${pct(v.evidence_share_min)}`)}
+      ${row("Avg message length (chars)", v => v.mean_message_chars != null ? Math.round(v.mean_message_chars) : "—")}
       ${row("Blocked · malformed · retries", v => `${v.blocked ?? 0} · ${v.malformed ?? 0} · ${v.retries ?? 0}`)}
       ${row("Judge cost per run", v => money(v.mean_judge_cost))}
     </table>
@@ -1125,7 +1157,8 @@ function resultsHtml(a, s) {
 }
 
 async function studyUpdate(d) { const r = await api(`studies/${curStudy.study.id}/update`, d); if (r.error) return toast(r.error); openStudy(curStudy.study.id, true); loadStudies(); }
-function toggleCond(c, on) { const s = new Set(curStudy.study.conditions); on ? s.add(c) : s.delete(c); studyUpdate({ conditions: ["D0", "V1", "V2", "V3"].filter(x => s.has(x)) }); }
+const ALLCONDS = () => Object.keys(META.protocols).filter(k => k !== "free");
+function toggleCond(c, on) { const s = new Set(curStudy.study.conditions); on ? s.add(c) : s.delete(c); studyUpdate({ conditions: ALLCONDS().filter(x => s.has(x)) }); }
 function toggleCase(id, on) { const s = new Set(curStudy.study.case_ids); on ? s.add(id) : s.delete(id); studyUpdate({ case_ids: [...s] }); }
 const whoAmI = () => { let w = ""; try { w = localStorage.getItem("lab-who") || ""; } catch {} return w || prompt("Your name, for the record:") || ""; };
 async function lockStudy() {

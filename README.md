@@ -52,8 +52,23 @@ communicate to solve the case. The protocols differ only in **how information tr
   team relies on, it raises an alert: only the affected agent pauses, the owner of the evidence checks it, and work resumes.
   *Stops the team building on a wrong fact; the risk is false alarms that slow things down.*
 
-The question the Lab answers: does V1, V2 or V3 make the team **cheaper per correct answer** than D0, and what does it
-cost in reliability? Each variant changes exactly one thing compared with D0, so differences can be traced to that change.
+**Methods from recent research** (details, sources and simplifications in [docs/METHODS.md](docs/METHODS.md)):
+
+- **A1 · Inhibitory evidence routing** (AI research, Siboni et al. 2026): the router forwards the *original evidence* an
+  agent cites, never its paraphrase or opinion, once per receiver per round, and cancels copies receivers already have.
+  *"Send me the source document, not your summary."*
+- **A2 · PACT action-state messages** (AI research, Huang et al. 2026): every message is a tiny record of Action, State and
+  Result; reasoning and small talk are stripped. *A strict status-report template.*
+- **B1 · Adaptive hierarchy** (business research, Abi-Esber et al., Academy of Management Journal 2026): flat rounds while
+  evidence comes in (anyone talks to anyone, no decisions), then centralized rounds where the boss collects positions and
+  decides. *Brainstorm openly, then the manager pulls it together.*
+- **B2 · Facilitated information sharing** (business research, Alsobay et al., CSCW 2026): a facilitator nudges the
+  specialist who has shared least of what only it knows, and the boss must address unshared or unused evidence before
+  deciding. *A good meeting chair: "you haven't weighed in on X yet."*
+
+The question the Lab answers: which method makes the team **cheaper per correct answer** than D0, and what does it cost in
+reliability? Each method changes exactly one thing compared with D0, so differences can be traced to that change.
+Ready-made networks for all five (D0, A1, A2, B1, B2) are set up, and **Studies → Method comparison** compares them.
 
 ### Scoring
 A run is a **joint success** when (1) the root cause matches the answer key, (2) the required evidence is cited, and

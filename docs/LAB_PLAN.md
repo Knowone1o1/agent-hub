@@ -120,6 +120,14 @@ A new **Lab** section inside Agent Hub for multi-agent communication experiments
   - **Exports:** runs.csv (all attempts, marked evaluated or infrastructure retry), agents.csv, traces.jsonl, analysis.json. Downloads are also archived under `data/lab/studies/<id>_exports/`.
   - **Tested:** a 4-run feasibility study on Haiku. Runner, scoring, analysis, gate, forecast and exports all work. In that test both V1 runs hit the 6-round cap without a final answer, while D0 needed 5–6 rounds. Lesson: set caps from the feasibility runs (above the 90th percentile of rounds actually used), not from guesses.
 
+- **Methods from research: added (11 Nov 2026).** Four new protocols, all built on D0, are documented in [METHODS.md](METHODS.md):
+  - A1 inhibitory evidence routing (arXiv:2610.24718)
+  - A2 PACT (arXiv:2606.05304)
+  - B1 adaptive hierarchy (AMJ 2026)
+  - B2 facilitated sharing (CSCW 2026)
+
+  Each has its own mechanism metrics in the trace, the study results and the exports. Five ready-made supply-chain networks exist (D0, A1, A2, B1, B2), plus a "Method comparison" study template.
+
 ## Next steps for the experiment
 1. Review and freeze the 12 supply-chain cases (Lab → Cases). Check every answer key's keywords.
 2. On the Sonnet supply-chain team, run a feasibility study on the 4 development cases × D0–V3 with at least 3 repetitions (≥ 10 attempts). Look at rounds and cost, then set the limits (rounds, cost, time) with headroom.

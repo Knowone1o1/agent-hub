@@ -138,6 +138,29 @@ PROTOCOLS = {
     "V1": "V1 relay bypass: like D0, but evidence-linked findings travel directly along specialist-to-specialist arrows.",
     "V2": "V2 pull information: like D0, but findings arrive as short notices; full detail is requested by handle.",
     "V3": "V3 early escalation: like D0, plus contradiction alerts that pause only the affected agent until verified.",
+    "A1": "A1 inhibitory evidence routing (AI research): like D0, but the router forwards the original cited evidence instead of the sender's conclusions, once per receiver per round, and cancels copies receivers already hold.",
+    "A2": "A2 PACT action-state messages (AI research): like D0, but every message is a compact {action, state, result} record; reasoning and restatements are stripped.",
+    "B1": "B1 adaptive hierarchy (business research): the team switches between flat rounds (anyone may talk to anyone, no decisions) and centralized rounds (positions go to the coordinator, who synthesises and decides).",
+    "B2": "B2 facilitated information sharing (business research): like D0, plus a facilitator that nudges the specialist who has shared least of its private evidence, and a pre-decision check on unshared or unused evidence.",
+}
+# Where each method comes from (shown in the app and the docs).
+PROTOCOL_SOURCES = {
+    "D0": {"family": "baseline", "name": "Coordinator-led (default)", "source": "Pilot proposal, condition D0"},
+    "V1": {"family": "proposal variant", "name": "Relay bypass", "source": "Pilot proposal, condition V1"},
+    "V2": {"family": "proposal variant", "name": "Pull information", "source": "Pilot proposal, condition V2"},
+    "V3": {"family": "proposal variant", "name": "Early escalation", "source": "Pilot proposal, condition V3"},
+    "A1": {"family": "AI research", "name": "Inhibitory evidence routing",
+           "source": "Siboni, Springer & Rostami (2026). Neuro-Inspired Inhibitory Message Passing for Accurate and Token-Efficient Multi-Agent Reasoning. arXiv:2610.24718",
+           "url": "https://arxiv.org/abs/2610.24718"},
+    "A2": {"family": "AI research", "name": "PACT action-state messages",
+           "source": "Huang, Wu & Zhang (2026). What Should Agents Say? Action-state Communication for Efficient Multi-Agent Systems. arXiv:2606.05304",
+           "url": "https://arxiv.org/abs/2606.05304"},
+    "B1": {"family": "business research", "name": "Adaptive hierarchy",
+           "source": "Abi-Esber, Greer & De Hoogh (2026). Team Hierarchical Adaptability: Benefits for Team Coordination and Performance. Academy of Management Journal 69(3), 563-592. doi:10.5465/amj.2023.1308",
+           "url": "https://doi.org/10.5465/amj.2023.1308"},
+    "B2": {"family": "business research", "name": "Facilitated information sharing",
+           "source": "Alsobay, Rothschild, Hofman & Goldstein (2026). Bringing Everyone to the Table: An Experimental Study of LLM-Facilitated Group Decision Making. ACM CSCW 2026, arXiv:2508.08242",
+           "url": "https://arxiv.org/abs/2508.08242"},
 }
 DEFAULT_CAPS = {"max_rounds": 8, "max_cost_usd": 2.0, "max_seconds": 900, "concurrency": 3,
                 "alert_timeout_rounds": 3, "max_alerts": 3}
@@ -217,6 +240,9 @@ def apply_protocol_layout(n, protocol):
     for x in n["nodes"]:
         if x["id"] != c:
             edges += [{"from": x["id"], "to": c}, {"from": c, "to": x["id"]}]
+    if n["protocol"] == "B1":  # flat rounds need every specialist able to reach every other specialist
+        specs = [x["id"] for x in n["nodes"] if x["id"] != c]
+        edges += [{"from": a, "to": b} for a in specs for b in specs if a != b]
     if n["protocol"] == "V1":
         for src_role, dst_role, topics in ROLE_PACKS[n["pack"]].get("v1_paths", []):
             for a in (x for x in n["nodes"] if x["role"] == src_role):
@@ -431,6 +457,25 @@ PROTOCOL_RULES = {
            "That agent is paused until the owner of the evidence verifies. If you receive a verification request, answer it with "
            "\"verification\". Do not raise alerts for mere uncertainty; false alarms cost the team time."),
 }
+PROTOCOL_RULES.update({
+    "A1": ("PROTOCOL A1 (inhibitory evidence routing): communication goes through {coord}. Cite the evidence IDs every claim rests on "
+           "and keep each message under 100 words. The router does NOT pass on your wording: it forwards the original text of the "
+           "evidence you cite (only to agents who don't already hold it) plus at most a one-line claim to {coord}. "
+           "What you receive from others is therefore evidence, not their conclusions: judge it yourself."),
+    "A2": ("PROTOCOL A2 (PACT action-state messages): communication goes through {coord}. Every message is a compact record with "
+           "three fields: \"action\" (what you did, or what the recipient should do), \"state\" (the observed facts, with evidence IDs) "
+           "and \"result\" (your finding or output). Each field is one short sentence (about 25 words at most). "
+           "No reasoning, no restating what others said, no pleasantries. Only these records are kept in the team's history."),
+    "B1": ("PROTOCOL B1 (adaptive hierarchy): {coord} stays the formal lead, but the team switches between two modes, announced "
+           "each round. FLAT rounds: anyone may message anyone directly to share findings, ask and answer; no decisions and no final "
+           "answer. CENTRALIZE rounds: specialists send {coord} one position message (content: hypothesis, evidence IDs, confidence, "
+           "open questions); messages between specialists go to {coord}; {coord} synthesises, decides and may submit the final answer."),
+    "B2": ("PROTOCOL B2 (facilitated sharing): communication goes through {coord}. A neutral Facilitator watches which private "
+           "evidence each specialist has shared. If it nudges you, share the named evidence (finding with evidence IDs, the claim, "
+           "and its relevance) or say plainly that it is not relevant. Before the final answer is accepted, {coord} must address "
+           "any evidence that was never shared or never used."),
+})
+
 EXTRA_FIELDS = {
     "V2": '\n  "requests": [{"handle": "<H# of a notice you received and need in full>"}],',
     "V3": ('\n  "alert": null,   // or {"evidence_ids": [...], "claim": "<the contradicted claim>", "dependency": "<agent whose work is affected>"}'
@@ -468,6 +513,10 @@ def system_for(net, node, nodes_by_id, out_targets, memory, coord_name=None, byp
         fmt = (ROUNDS_FORMAT.replace("{targets}", targets).replace("{final_rule}", rule).replace("{protocol_rules}", rules)
                .replace("{extra_fields}", EXTRA_FIELDS.get(proto, ""))
                .replace("{summary_field}", ', "summary": "<one-line notice for findings>"' if proto == "V2" else ""))
+        if proto == "A2":  # PACT: the message body is an action/state/result record instead of free text
+            fmt = fmt.replace('"content": "<your message>"',
+                              '"action": "<what you did / what the recipient should do>", "state": "<observed facts>", '
+                              '"result": "<your finding or output>"')
     mem = f"\n\nYour memory from earlier runs:\n{memory}" if memory else ""
     return (f"You are {node['name']}, an AI agent in a multi-agent team.\nYour role: {r['job']}\n{r['instructions']}\n\n"
             f"The team:\n{team}\n\nYou only see messages sent to you. Be concise and specific; every token costs.\n\n{fmt}{mem}")
@@ -499,6 +548,16 @@ class Run:
         self.board, self.handles = {}, 0            # V2 notice handles -> full content
         self.alerts, self.alert_seq, self.alert_count, self.paused = {}, 0, {}, {}   # V3
         self.ev_owner = {}         # evidence id -> agent that first reported it (until cases define owners)
+        self.evidence_text = {}    # evidence id -> original text (A1 forwards this instead of paraphrases)
+        self.holdings = {nid: set() for nid in self.nodes}    # evidence ids each agent privately holds
+        self.shared = {nid: set() for nid in self.nodes}      # own evidence ids an agent has cited in a message (B2)
+        self.mode = None           # B1: "flat" | "centralize" for the current round
+        self.mode_history = []
+        self.gate_done = False     # B2: pre-decision check already applied
+        self.deferred_final = None # B1: a final answer submitted in a flat round waits for a centralize round
+        self.a1_sent = set()       # A1: (round, receiver, evidence id) already forwarded
+        self.nudges = {}           # B2: facilitator nudges per agent
+        self.released_this_round = False
         # Prompt lines like "@Demand: ..." are private to that agent; everything else is the shared brief.
         self.private, shared = {nid: [] for nid in self.nodes}, []
         for line in prompt.splitlines():
@@ -508,6 +567,10 @@ class Run:
                 self.private[target].append(mm.group(2))
                 for eid in re.findall(r"\b[A-Z]{1,3}-?\d+\b", mm.group(2)):
                     self.ev_owner.setdefault(eid, target)   # whoever privately holds the evidence owns it (V3 verification)
+                    self.holdings[target].add(eid)
+                # "E1: text E2: text" -> original evidence passages (used by A1)
+                for eid, txt in re.findall(r"\b([A-Z]{1,3}-?\d+)\s*:\s*(.+?)(?=\s+[A-Z]{1,3}-?\d+\s*:|$)", mm.group(2)):
+                    self.evidence_text.setdefault(eid, txt.strip())
             else:
                 shared.append(line)
         self.shared_brief = "\n".join(shared).strip() or "(see your private information)"
@@ -584,6 +647,8 @@ class Run:
                 bypass = [(self.nodes[e["to"]]["name"], e.get("topics") or []) for e in self.net["edges"]
                           if e["from"] == nid and e["to"] != self.coord]
                 targets += [b[0] for b in bypass]
+            if proto == "B1" and self.mode == "flat":
+                targets = [n["name"] for k, n in self.nodes.items() if k != nid]
         system = system_for(self.net, node, self.nodes, targets, self.memory.get(nid, ""),
                             coord_name=self.nodes[self.coord]["name"] if self.coord else None, bypass_paths=bypass)
         lines = [f"TASK BRIEF:\n{self.shared_brief}"]
@@ -593,6 +658,11 @@ class Run:
             lines.append("WHAT HAS HAPPENED SO FAR (from your point of view):\n" + "\n".join(self.history[nid]))
         if items:
             lines.append("NEW FOR YOU THIS ROUND:\n" + "\n".join(it["text"] for it in items))
+        if proto == "B1" and self.mode:
+            lines.append("THIS IS A FLAT ROUND: message anyone directly; share findings, ask and answer. No decisions and no final answer this round."
+                         if self.mode == "flat" else
+                         ("THIS IS A CENTRALIZE ROUND: " + ("synthesise the positions, decide, and submit the final answer if the evidence supports it."
+                          if nid == self.coord else "send the coordinator one position message: hypothesis, evidence IDs, confidence, open questions.")))
         lines.append(f"This is round {round_no}. Respond as {node['name']} with the JSON object only.")
         prompt = "\n\n".join(lines)
         self.set_state(nid, "thinking")
@@ -635,10 +705,13 @@ class Run:
                     self.log({"type": "evidence", "evidence_id": e["id"], "round": rnd, "to": None, "owner_role": e.get("owner"),
                               "unassigned": True, "chars": len(text)})
                     continue
+                self.evidence_text[e["id"]] = f"{head} · source: {e.get('source') or 'n/a'} · {e['content']}"
                 for nid in owners:
                     ev = self.log({"type": "evidence", "evidence_id": e["id"], "round": rnd, "to": nid, "owner_role": e.get("owner"),
                                    "chars": len(text), "correction": e.get("type") == "correction"})
                     self.private[nid].append(text)
+                    self.holdings[nid].add(e["id"])
+                    self.released_this_round = True
                     if inbox is not None:
                         inbox[nid].append({"id": f"ev{ev['i']}", "from_name": "evidence",
                                            "text": f"[new evidence] {head} has arrived; it is listed under your private information."})
@@ -670,6 +743,12 @@ class Run:
             to_name = str(m.get("to", "")).strip().lstrip("@").lower()
             to = self.name_to_id.get(to_name)
             content = str(m.get("content", "")).strip()
+            pact = None
+            if proto == "A2":  # PACT: the delivered message is the action/state/result record only
+                parts = {k: str(m.get(k, "")).strip() for k in ("action", "state", "result")}
+                pact = sum(1 for v in parts.values() if v)
+                if pact:
+                    content = " | ".join(f"{k.upper()}: {v}" for k, v in parts.items() if v)
             if not content:
                 continue
             kind = str(m.get("kind", "finding")).lower()
@@ -679,6 +758,8 @@ class Run:
             summary = str(m.get("summary", "")).strip()[:300]
             for e in ev_ids:
                 self.ev_owner.setdefault(e, sender)
+                if e in self.holdings[sender]:
+                    self.shared[sender].add(e)
             if not to or to == sender:
                 self.log({"type": "blocked", "from": sender, "to_name": to_name, "round": rnd,
                           "reason": "unknown agent" if not to else "self", "content": content[:500]})
@@ -687,6 +768,10 @@ class Run:
             base = {"type": "message", "id": new_id(), "from": sender, "to": to, "round": rnd, "kind": kind, "topic": topic,
                     "content": content, "evidence_ids": ev_ids, "chars": len(content), "relay": relay,
                     "from_name": sname, "to_name": self.nodes[to]["name"]}
+            if pact is not None:
+                base.update(pact_fields=pact, grounded=bool(ev_ids))
+            if self.mode:
+                base["phase"] = self.mode
 
             # 1) free protocol: the arrows are the permissions
             if proto == "free":
@@ -701,9 +786,15 @@ class Run:
                 continue
 
             # 2) coordinator-led protocols (D0 base)
+            if proto == "B1" and self.mode == "flat" and kind == "decision":
+                self.log({"type": "blocked", "from": sender, "to_name": to_name, "round": rnd,
+                          "reason": "decisions wait for a centralize round (B1)", "content": content[:500]})
+                continue
             spec_to_spec = sender != coord and to != coord
             channel, deliver_to = "direct", to
-            if spec_to_spec:
+            if spec_to_spec and proto == "B1" and self.mode == "flat":
+                pass  # flat round: specialists talk to each other directly
+            elif spec_to_spec:
                 e = edges.get((sender, to))
                 eligible = (proto == "V1" and e is not None and kind in ("finding", "correction") and ev_ids
                             and (not e.get("topics") or any(t in topic for t in e["topics"])))
@@ -723,6 +814,9 @@ class Run:
             sent += 1
             self.history[sender].append(f"(round {rnd}) you -> {self.nodes[to]['name']}"
                                         + (" (routed via coordinator)" if channel == "routed" else "") + f": {content}")
+            if proto == "A1" and sender != coord:
+                self.a1_forward(sender, deliver_to, rnd, kind, content, ev_ids, rec["id"])
+                continue
             if channel == "routed":
                 prefix = f"(for {self.nodes[to]['name']}, routed to you) "
                 self.push(coord, rnd + 1, self.fmt_msg(sname, kind, topic, content, ev_ids, prefix), rec["id"], sname)
@@ -750,6 +844,85 @@ class Run:
             else:
                 self.push(deliver_to, rnd + 1, self.fmt_msg(sname, kind, topic, content, ev_ids), rec["id"], sname)
         return sent
+
+    # -- B2 facilitated sharing (Alsobay et al. 2026; rule-based facilitator, no extra model calls)
+    def b2_sharing(self):
+        out = {}
+        for nid in self.nodes:
+            if nid == self.coord or not self.holdings[nid]:
+                continue
+            held = self.holdings[nid]
+            out[nid] = {"held": sorted(held), "shared": sorted(self.shared[nid] & held), "unshared": sorted(held - self.shared[nid]),
+                        "share": round(len(self.shared[nid] & held) / len(held), 3)}
+        return out
+
+    def b2_nudge(self, rnd):
+        stats = {k: v for k, v in self.b2_sharing().items() if v["unshared"] and self.nudges.get(k, 0) < 2 and k not in self.paused}
+        if not stats:
+            return
+        nid = min(stats, key=lambda k: (stats[k]["share"], self.nudges.get(k, 0)))
+        self.nudges[nid] = self.nudges.get(nid, 0) + 1
+        ids = ", ".join(stats[nid]["unshared"])
+        self.sys_note(nid, rnd + 1, "b2_nudge",
+                      f"Facilitator: {self.nodes[nid]['name']}, you hold {ids} and haven't shared {'it' if ',' not in ids else 'them'} yet. "
+                      f"Send the coordinator a finding (evidence IDs, the claim, and its relevance to the current hypothesis), "
+                      f"or say plainly that it is not relevant.", share=stats[nid]["share"])
+
+    def b2_gate(self, final, rnd):
+        """Before accepting the decision once: the coordinator must address never-shared and shared-but-unused evidence."""
+        self.gate_done = True
+        stats = self.b2_sharing()
+        unshared = {k: v["unshared"] for k, v in stats.items() if v["unshared"]}
+        cited = {str(x).upper() for x in (final.get("evidence_ids") or [])}
+        shared_all = {e for v in stats.values() for e in v["shared"]}
+        unused = sorted(e for e in shared_all if e.upper() not in cited)
+        self.log({"type": "protocol", "what": "b2_gate", "round": rnd, "unshared": unshared, "unused": unused,
+                  "held": bool(unshared or unused)})
+        if not unshared and not unused:
+            return final
+        parts = []
+        if unshared:
+            parts.append("never shared: " + "; ".join(f"{self.nodes[k]['name']} holds {', '.join(v)}" for k, v in unshared.items()))
+            for k, v in unshared.items():
+                self.sys_note(k, rnd + 1, "b2_gate_request",
+                              f"Facilitator: the team is about to decide. Share {', '.join(v)} with the coordinator now, or say it is not relevant.")
+        if unused:
+            parts.append("shared but not used in your answer: " + ", ".join(unused))
+        self.sys_note(self.coord, rnd + 1, "b2_gate_notice",
+                      "Facilitator check before the decision: " + "; ".join(parts) +
+                      ". Address each item (use it, or say why it doesn't matter), then submit your final answer again.")
+        return None
+
+    def a1_forward(self, sender, receiver, rnd, kind, content, ev_ids, msg_id):
+        """A1 inhibitory routing (Siboni et al. 2026, simplified with declared evidence IDs instead of lexical matching):
+        deliver the ORIGINAL text of each cited evidence item, once per receiver per round, and cancel ('inhibit') copies
+        the receiver already holds. The sender's own wording is not forwarded, except a one-line claim to the coordinator."""
+        sname = self.nodes[sender]["name"]
+        for eid in ev_ids:
+            if eid not in self.evidence_text:
+                self.log({"type": "protocol", "what": "a1_invalid_id", "from": sender, "to": receiver, "round": rnd, "evidence_id": eid})
+                continue
+            key = (rnd, receiver, eid)
+            if eid in self.holdings[receiver] or key in self.a1_sent:
+                self.log({"type": "protocol", "what": "a1_inhibited", "from": sender, "to": receiver, "round": rnd, "evidence_id": eid,
+                          "reason": "receiver already holds it" if eid in self.holdings[receiver] else "already forwarded this round"})
+                continue
+            self.a1_sent.add(key)
+            text = f"[forwarded evidence, cited by {sname}] {self.evidence_text[eid]}"
+            ev = self.log({"type": "protocol", "what": "a1_forward", "from": sender, "to": receiver, "round": rnd, "evidence_id": eid,
+                           "content": text, "chars": len(text), "ref": msg_id})
+            self.push(receiver, rnd + 1, text, f"p{ev['i']}", sname)
+        if receiver == self.coord or not ev_ids:
+            words = content.split()
+            claim = " ".join(words[:30]) + ("…" if len(words) > 30 else "")
+            if receiver == self.coord:
+                text = f"[{sname}] ({kind}, one-line claim) {claim}" + (f" (evidence: {', '.join(ev_ids)})" if ev_ids else "")
+                ev = self.log({"type": "protocol", "what": "a1_claim", "from": sender, "to": receiver, "round": rnd,
+                               "content": text, "chars": len(text), "full_chars": len(content), "ref": msg_id})
+                self.push(receiver, rnd + 1, text, f"p{ev['i']}", sname)
+            else:
+                self.log({"type": "protocol", "what": "a1_stripped", "from": sender, "to": receiver, "round": rnd,
+                          "full_chars": len(content), "ref": msg_id})
 
     def handle_requests(self, nid, rnd, reqs):
         for r in (reqs or [])[:10]:
@@ -834,10 +1007,21 @@ class Run:
             self.pending = [p for p in self.pending if p[0] > rnd]
             for _, to, it in due:
                 inbox[to].append(it)
+            self.released_this_round = False
             self.release_evidence(rnd, inbox)
+            switched = False
+            if proto == "B1":  # adaptive hierarchy: flat while evidence is arriving, then centralize to synthesise
+                recent = self.mode_history[-2:]
+                want = "flat" if (rnd <= 2 or self.released_this_round) else "centralize"
+                if want == "flat" and len(recent) == 2 and all(m == "flat" for m in recent) and rnd > 2:
+                    want = "centralize"   # never more than two flat rounds in a row: the lead pulls things together
+                switched = bool(self.mode_history) and want != self.mode_history[-1]
+                self.mode = want
+                self.mode_history.append(want)
+                self.log({"type": "protocol", "what": "mode", "mode": want, "round": rnd, "switched": switched})
             for nid, aid in self.paused.items():
                 self.log({"type": "wait", "node": nid, "round": rnd, "reason": f"paused by {aid}"})
-            actors = [nid for nid in self.nodes if (rnd == 1 or inbox[nid]) and nid not in self.paused]
+            actors = [nid for nid in self.nodes if (rnd == 1 or inbox[nid] or switched) and nid not in self.paused]
             if not actors:
                 if self.pending or self.schedule:  # messages in flight or evidence still to be released
                     continue
@@ -855,7 +1039,7 @@ class Run:
                 obj = results[nid]
                 if obj is None:
                     continue
-                if obj.get("notes"):
+                if obj.get("notes") and proto != "A2":   # PACT keeps reasoning out of the history
                     self.history[nid].append(f"(round {rnd}) your note: {obj['notes']}")
                 sent = self.route(nid, rnd, obj.get("messages"))
                 if proto == "V2":
@@ -879,6 +1063,20 @@ class Run:
                     final = {"by": nid, "round": rnd, **{k: fa.get(k) for k in ("conclusion", "evidence_ids", "plan")}}
                 if status == "unresolved" and nid in coord:
                     unresolved = True
+            if proto == "B1":
+                if final and self.mode == "flat":
+                    self.deferred_final = final
+                    self.log({"type": "protocol", "what": "final_deferred", "round": rnd, "node": final["by"]})
+                    self.sys_note(final["by"], rnd + 1, "final_deferred_notice",
+                                  "Your final answer was held: decisions are taken in CENTRALIZE rounds. Confirm or revise it then.")
+                    final = None
+                elif not final and self.mode == "centralize" and self.deferred_final and not any(
+                        p[1] == self.coord for p in self.pending):
+                    final = dict(self.deferred_final, round=rnd)   # the held answer stands if nothing new came in
+            if proto == "B2":
+                if final and not self.gate_done:
+                    final = self.b2_gate(final, rnd)
+                self.b2_nudge(rnd)
             self.save()
             if final:
                 self.summary["final_answer"] = final
@@ -954,6 +1152,9 @@ class Run:
             self.log({"type": "error", "message": f"{type(e).__name__}: {e}"})
             reason = "error"
         finally:
+            if any(self.holdings.values()):
+                self.log({"type": "protocol", "what": "sharing_summary", "stats": self.b2_sharing(),
+                          "modes": self.mode_history or None})
             self.log({"type": "end", "reason": reason})
             self.summary.update(status="stopped" if reason == "stopped" else "done", end_reason=reason, ended=time.time())
             self.summary["node_state"] = {nid: "idle" for nid in self.nodes}
@@ -1196,6 +1397,32 @@ def protocol_metrics(net, trace):
         "retries": sum(1 for c in calls if c.get("attempt", 1) > 1),
         "failed_calls": sum(1 for c in calls if not c.get("ok")),
     }
+    # A1 inhibitory routing: how many cited copies were forwarded vs cancelled
+    fwd, inh = by("a1_forward"), by("a1_inhibited")
+    m.update({"a1_forwarded": len(fwd), "a1_inhibited": len(inh), "a1_invalid_ids": len(by("a1_invalid_id")),
+              "a1_cancellation_ratio": round(len(inh) / (len(fwd) + len(inh)), 3) if (fwd or inh) else None,
+              "a1_stripped_chars": sum(e.get("full_chars", 0) for e in by("a1_stripped") + by("a1_claim")) -
+                                   sum(e.get("chars", 0) for e in by("a1_claim"))})
+    # A2 PACT: record compactness and grounding
+    pact = [x for x in msgs if "pact_fields" in x]
+    m.update({"a2_records": len(pact), "a2_full_records": sum(1 for x in pact if x["pact_fields"] == 3),
+              "a2_grounded_share": round(sum(1 for x in pact if x.get("grounded")) / len(pact), 3) if pact else None,
+              "mean_message_chars": round(sum(x.get("chars", 0) for x in msgs) / len(msgs), 1) if msgs else None})
+    # B1 adaptive hierarchy: phases and where the talking happened
+    modes = by("mode")
+    m.update({"b1_flat_rounds": sum(1 for x in modes if x.get("mode") == "flat"),
+              "b1_centralize_rounds": sum(1 for x in modes if x.get("mode") == "centralize"),
+              "b1_switches": sum(1 for x in modes if x.get("switched")),
+              "b1_direct_flat_msgs": sum(1 for x in msgs if x.get("phase") == "flat" and x["from"] != coord and x["to"] != coord),
+              "b1_hub_msgs": sum(1 for x in msgs if x["from"] == coord or x["to"] == coord),
+              "b1_deferred_finals": len(by("final_deferred"))})
+    # B2 facilitation (and evidence sharing for every protocol)
+    share = by("sharing_summary")
+    stats = (share[-1].get("stats") if share else None) or {}
+    shares = [v["share"] for v in stats.values()]
+    m.update({"b2_nudges": len(by("b2_nudge")), "b2_gate_holds": sum(1 for x in by("b2_gate") if x.get("held")),
+              "evidence_share_mean": round(sum(shares) / len(shares), 3) if shares else None,
+              "evidence_share_min": min(shares) if shares else None})
     return m
 
 
@@ -1268,7 +1495,8 @@ def handle(method, parts, body, query):
     try:
         if method == "GET":
             if parts == ["meta"]:
-                return {"packs": ROLE_PACKS, "models": MODELS, "protocols": PROTOCOLS, "default_caps": DEFAULT_CAPS,
+                return {"packs": ROLE_PACKS, "models": MODELS, "protocols": PROTOCOLS, "protocol_sources": PROTOCOL_SOURCES,
+                        "default_caps": DEFAULT_CAPS,
                         "score_version": SCORE_VERSION}, 200
             if parts == ["networks"]:
                 return {"networks": list_networks()}, 200
