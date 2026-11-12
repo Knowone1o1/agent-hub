@@ -180,7 +180,7 @@ PROTOCOL_SOURCES = {
            "url": "https://doi.org/10.5465/amd.2015.0097"},
 }
 DEFAULT_CAPS = {"max_rounds": 8, "max_cost_usd": 2.0, "max_seconds": 900, "concurrency": 3,
-                "alert_timeout_rounds": 3, "max_alerts": 3}
+                "alert_timeout_rounds": 3, "max_alerts": 3, "min_final_after_evidence": True}
 MSG_KINDS = ("finding", "request", "reply", "correction", "decision")
 
 
@@ -324,6 +324,7 @@ def validate_network(n):
         n["model"] = "sonnet"
     caps = dict(DEFAULT_CAPS)
     caps.update({k: v for k, v in (n.get("caps") or {}).items() if k in DEFAULT_CAPS})
+    caps["min_final_after_evidence"] = bool(caps["min_final_after_evidence"])
     caps["max_rounds"] = max(1, min(int(caps["max_rounds"]), 40))
     caps["max_cost_usd"] = max(0.05, min(float(caps["max_cost_usd"]), 50))
     caps["max_seconds"] = max(30, min(int(caps["max_seconds"]), 7200))
@@ -381,6 +382,9 @@ def reset_memory(nid):
 
 # ------------------------------------------------------------------ model call
 
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)   # Windows: no console pop-up per model call
+
+
 def call_model(system, prompt, model, timeout=600):
     """One tool-free Claude Code call. Returns text plus exact usage and cost estimate."""
     exe = shutil.which("claude")
@@ -395,7 +399,7 @@ def call_model(system, prompt, model, timeout=600):
                             "--system-prompt-file", sp, "--strict-mcp-config", "--disable-slash-commands",
                             "--no-session-persistence"],
                            input=prompt, capture_output=True, text=True, encoding="utf-8",
-                           timeout=timeout, cwd=str(LAB))
+                           timeout=timeout, cwd=str(LAB), creationflags=NO_WINDOW)
         try:
             j = json.loads(r.stdout)
         except json.JSONDecodeError:
@@ -628,6 +632,7 @@ class Run:
                 owners = [nid for nid, n in self.nodes.items() if n["role"] == e.get("owner")]
                 if owners:
                     self.ev_owner.setdefault(e["id"], owners[0])
+        self.last_release = max(self.schedule) if self.schedule else 0
         self.summary = {
             "id": self.id, "network_id": self.net["id"], "network_name": self.net["name"], "network": self.net,
             "prompt": prompt, "case_id": case.get("id") if case else None, "status": "running",
@@ -665,6 +670,12 @@ class Run:
     def set_state(self, nid, state):
         self.summary["node_state"][nid] = state
         self.save()
+
+    def min_final_round(self):
+        """Minimum-round rule: the first round in which a final answer counts (0 = no rule: free prompts or rule off)."""
+        if not self.net["caps"].get("min_final_after_evidence", True) or not self.last_release:
+            return 0
+        return self.last_release + 1
 
     def over_cap(self):
         c = self.net["caps"]
@@ -1245,20 +1256,30 @@ class Run:
                     final = {"by": nid, "round": rnd, **{k: fa.get(k) for k in ("conclusion", "evidence_ids", "plan")}}
                 if status == "unresolved" and nid in coord:
                     unresolved = True
+            # minimum-round rule (all protocols): no final answer until every scheduled piece of evidence has been
+            # released AND has had one round to travel (messages are delivered the round after they are sent)
+            min_final = self.min_final_round()
+            if final and rnd < min_final:
+                self.deferred_final = final
+                self.log({"type": "protocol", "what": "final_too_early", "round": rnd, "node": final["by"],
+                          "min_round": min_final})
+                self.sys_note(final["by"], rnd + 1, "final_too_early_notice",
+                              f"Your final answer was held: case evidence is still arriving (last release in round "
+                              f"{min_final - 1}). From round {min_final} confirm or revise it with everything the team reports.")
+                final = None
             # protocols where a final answer must wait for the right kind of round
             hold_in = {"B1": ("flat",), "B2": ("standup",), "B3": ("quiet",)}.get(proto, ())
             accept_in = {"B1": "centralize", "B2": "normal", "B3": "interaction"}.get(proto)
-            if hold_in:
-                if final and self.mode in hold_in:
-                    self.deferred_final = final
-                    self.log({"type": "protocol", "what": "final_deferred", "round": rnd, "node": final["by"]})
-                    when = {"B1": "CENTRALIZE rounds", "B2": "normal (non stand-up) rounds", "B3": "interaction rounds"}[proto]
-                    self.sys_note(final["by"], rnd + 1, "final_deferred_notice",
-                                  f"Your final answer was held: decisions are taken in {when}. Confirm or revise it then.")
-                    final = None
-                elif not final and self.mode == accept_in and self.deferred_final and not any(
-                        p[1] == self.coord for p in self.pending):
-                    final = dict(self.deferred_final, round=rnd)   # the held answer stands if nothing new came in
+            if final and hold_in and self.mode in hold_in:
+                self.deferred_final = final
+                self.log({"type": "protocol", "what": "final_deferred", "round": rnd, "node": final["by"]})
+                when = {"B1": "CENTRALIZE rounds", "B2": "normal (non stand-up) rounds", "B3": "interaction rounds"}[proto]
+                self.sys_note(final["by"], rnd + 1, "final_deferred_notice",
+                              f"Your final answer was held: decisions are taken in {when}. Confirm or revise it then.")
+                final = None
+            elif (not final and self.deferred_final and rnd >= min_final and (not hold_in or self.mode == accept_in)
+                  and not any(p[1] == self.coord for p in self.pending)):
+                final = dict(self.deferred_final, round=rnd)   # the held answer stands if nothing new came in
             if proto == "A4" and not final and self.a4_actions >= 10:
                 self.save()
                 return "action_cap"
@@ -1728,7 +1749,8 @@ def protocol_metrics(net, trace):
               "b1_switches": sum(1 for x in modes if x.get("switched")),
               "b1_direct_flat_msgs": sum(1 for x in msgs if x.get("phase") == "flat" and x["from"] != coord and x["to"] != coord),
               "b1_hub_msgs": sum(1 for x in msgs if x["from"] == coord or x["to"] == coord),
-              "b1_deferred_finals": len(by("final_deferred"))})
+              "b1_deferred_finals": len(by("final_deferred")),
+              "finals_too_early": len(by("final_too_early"))})
     # integration (every protocol): messages that combine evidence held by two or more different specialists
     owner = {}
     for e in trace:

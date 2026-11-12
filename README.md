@@ -77,7 +77,9 @@ communicate to solve the case. The protocols differ only in **how information tr
   and findings that repeat what the recipient already has are suppressed. *Short focused bursts, no repeating yourself.*
 
 The question the Lab answers: which method makes the team **cheaper per correct answer** than D0, and what does it cost in
-reliability? Each method changes exactly one thing compared with D0, so differences can be traced to that change.
+reliability? Each method changes exactly one thing compared with D0, so differences can be traced to that change. One rule is shared
+by all: a final answer only counts once every scheduled piece of evidence has been released and had a round to reach the
+boss, so no method wins just by waiting longer.
 Ready-made supply-chain networks for D0 and all eight methods (A1–A4, B1–B4) are set up, and **Studies → Method
 comparison** compares them.
 

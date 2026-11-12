@@ -138,6 +138,23 @@ A new **Lab** section inside Agent Hub for multi-agent communication experiments
     - Verified offline with a scripted model (no cost). A3/B4-era fixes (A3 blind answers) are not yet re-tested live.
   - Nine supply-chain networks exist, and the Method comparison draft covers D0 + all 8 methods (72 runs on development cases).
   - See [METHODS.md](METHODS.md).
+- **11 Nov 2026: first Method comparison (feasibility, 72 Sonnet runs, $11.38 API-equivalent)**
+  - Joint success:
+    - 8/8: A3, B1, B2, B3
+    - 7/8: A4
+    - 4/8: D0, A1, A2, B4
+  - Cost per success: B3 $0.074, A3 $0.102, A4 $0.165, B1 $0.233, A2 $0.242, A1 $0.244, B4 $0.277, D0 $0.292, B2 $0.341.
+  - The feasibility gate failed: D0 reached 50% (< 70%).
+  - Cause: the Coordinator answered before the last evidence reached it. The minimum-round rule was added for all methods, and live D0 re-runs on both failing cases now pass.
+  - Next: rerun the comparison with the rule.
+- **11 Nov 2026: Method comparison v2, with the minimum-round rule (72 Sonnet runs, $13.31 API-equivalent)**
+  - Every method solved 8/8, and the **feasibility gate passed** (D0 100%, no cap terminations).
+  - Cost per success:
+    - Cheaper than D0 ($0.187): B3 $0.080, A3 $0.104, A2 $0.148, A1 $0.149, A4 $0.155.
+    - Dearer than D0: B4 $0.212, B1 $0.260, B2 $0.331.
+  - Bootstrap ranges vs D0 exclude zero for B3, A3, A1, A2 (cheaper) and B1, B2, B4 (dearer); A4 is inconclusive.
+  - Also added: a live animated view of the running study (Studies → Overview).
+  - Claude calls no longer open console windows.
 
 ## Next steps for the experiment
 1. Review and freeze the 12 supply-chain cases (Lab → Cases). Check every answer key's keywords.

@@ -135,7 +135,7 @@ def lock_study(sid, who, override_note=""):
                          "or give a written reason to lock anyway (it is recorded as a deviation).")
     if s["kind"] == "main" and not feasibility_passed(s["network_id"]) and len(override_note.strip()) < 10:
         raise ValueError("No passing feasibility study for this network yet. Run one first, or give a written reason.")
-    net = lab.get_network(s["network_id"])
+    net = lab.validate_network(lab.get_network(s["network_id"]))   # record every cap in effect, defaults included
     s["network_snapshot"] = json.loads(json.dumps(net))
     s["case_snapshots"] = snapshots   # runs always use these exact versions, even if a case is edited later
     s["prereg"] = {"locked_at": time.time(), "locked_by": who[:60], "case_versions": case_versions,
@@ -204,6 +204,33 @@ def pause(sid, stop=False):
         s.pop("resume_at", None)
         log(s, "stopped" if stop else "paused (by user)")
         return save_study(s)
+
+
+def live_view(sid, last=40):
+    """What the runner is doing right now: the run in progress (with its latest events) or the judge scoring it."""
+    s = get_study(sid)
+    item = next((it for it in s["plan"] if it["status"] == "running"), None)
+    if not item:
+        return {"state": "idle"}
+    base = {"condition": item["condition"], "case_id": item["case_id"], "rep": item["rep"], "order": item["order"]}
+    rid = next((rid for rid, r in list(lab.LIVE.items()) if r.summary.get("study_id") == sid), None)
+    if not rid:
+        return {"state": "scoring", **base}   # run finished; the blinded judge is scoring it
+    r = lab.get_run(rid)
+    run, events = r["run"], r["events"]
+    nodes = {n["id"]: n["name"] for n in run["network"]["nodes"]}
+    roles = {r["key"]: r for r in lab.ROLE_PACKS[run["network"]["pack"]]["roles"]}
+    team = [{"id": n["id"], "name": n["name"], "color": roles.get(n["role"], {}).get("color", "#888"),
+             "coordinator": bool(roles.get(n["role"], {}).get("coordinator"))} for n in run["network"]["nodes"]]
+    started = run.get("started") or time.time()
+    return {"state": "running", **base, "run_id": rid, "round": run.get("round"),
+            "max_rounds": run["network"]["caps"]["max_rounds"], "seconds": round(time.time() - started),
+            "cost_usd": (run.get("totals") or {}).get("cost_usd"), "calls": (run.get("totals") or {}).get("calls"),
+            "messages": (run.get("protocol_metrics") or {}).get("messages"), "nodes": nodes, "team": team,
+            "agents": {a: {"calls": v.get("calls"), "cost_usd": v.get("cost_usd")} for a, v in (run.get("agents") or {}).items()
+                       if isinstance(v, dict)},
+            "events": [{k: (v[:220] if isinstance(v, str) else v) for k, v in e.items()} for e in events
+                       if e.get("type") in ("message", "final", "protocol", "round", "evidence", "turn")][-last:]}
 
 
 def _loop(sid):
@@ -480,7 +507,7 @@ def analyze(sid, boot=2000):
 
 EXTRA_METRICS = ["a1_forwarded", "a1_inhibited", "a1_cancellation_ratio", "a2_grounded_share", "mean_message_chars",
                  "a3_clusters", "a3_p_top", "a3_margin", "a3_uncertain", "a3_override", "a4_requests", "a4_replies", "a4_no_reply",
-                 "b1_switches", "b1_direct_flat_msgs", "b1_deferred_finals", "b2_standup_msgs", "b2_goal_changes",
+                 "b1_switches", "b1_direct_flat_msgs", "b1_deferred_finals", "finals_too_early","b2_standup_msgs", "b2_goal_changes",
                  "b3_held", "b3_deduped", "b3_urgent", "b4_threads", "b4_expired", "b4_duplicates", "burstiness",
                  "evidence_to_coordinator_delay", "cross_domain_share",
                  "evidence_share_mean", "evidence_share_min"]
@@ -569,6 +596,8 @@ def handle(method, parts, body, query):
             return {"study": s, "forecast": forecast(s["id"]), "feasibility": feasibility(s["id"]) if s["kind"] == "feasibility" else None}, 200
         if len(parts) == 3 and parts[0] == "studies" and parts[2] == "analysis":
             return analyze(parts[1]), 200
+        if len(parts) == 3 and parts[0] == "studies" and parts[2] == "live":
+            return live_view(parts[1]), 200
         return None
     if parts == ["studies", "new"]:
         return {"study": create_study(body)}, 200

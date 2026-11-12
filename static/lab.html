@@ -97,6 +97,69 @@ textarea { resize: none; }
 .pane { flex: 1; overflow: auto; padding: 14px; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
 .field { display: flex; flex-direction: column; gap: 4px; }
 .field > span { font-size: 12px; font-weight: 600; }
+/* live stage (Studies → running study) */
+.lv { margin: 12px 0; border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+  background: radial-gradient(120% 90% at 30% 0%, color-mix(in srgb, var(--accent) 12%, var(--panel)) 0%, var(--panel) 60%); }
+.lv-head { display: flex; align-items: center; gap: 14px; padding: 14px 16px 8px; flex-wrap: wrap; }
+.lv-ring { width: 48px; height: 48px; transform: rotate(-90deg); flex: none; }
+.lv-ring circle { fill: none; stroke-width: 5; } .lv-ring .bg { stroke: var(--line); }
+.lv-ring .fg { stroke: var(--green); stroke-linecap: round; transition: stroke-dashoffset .8s ease; }
+.lv-title { flex: 1; min-width: 220px; }
+.lv-now { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; }
+.lv-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 0 var(--green); animation: lvBeat 1.6s infinite; }
+.lv.scoring .lv-dot { background: var(--amber); animation-duration: .9s; }
+@keyframes lvBeat { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 70%, transparent); } 100% { box-shadow: 0 0 0 10px transparent; } }
+.lv-sub { margin-top: 3px; font-size: 13px; }
+.lv-chip { display: inline-block; padding: 1px 8px; border-radius: 99px; font-weight: 600; font-size: 12px; color: var(--c);
+  background: color-mix(in srgb, var(--c) 16%, transparent); border: 1px solid color-mix(in srgb, var(--c) 45%, transparent); }
+.lv-stats { display: flex; gap: 6px; flex-wrap: wrap; }
+.lv-stats div { display: flex; flex-direction: column; align-items: center; min-width: 64px; padding: 5px 8px; border-radius: 10px;
+  background: var(--panel2); border: 1px solid var(--line); }
+.lv-stats b { font-size: 16px; font-variant-numeric: tabular-nums; } .lv-stats span { font-size: 10.5px; color: var(--muted); }
+.lv-rounds { display: flex; gap: 5px; padding: 0 16px 6px; }
+.lv-rounds i { font-style: normal; font-size: 11px; width: 22px; height: 6px; border-radius: 3px; background: var(--line); color: transparent; overflow: hidden; }
+.lv-rounds i.done { background: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+.lv-rounds i.now { background: var(--accent); animation: lvGlow 1.2s ease-in-out infinite alternate; }
+@keyframes lvGlow { from { opacity: .55; } to { opacity: 1; } }
+.lv-body { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 0; border-top: 1px solid var(--line); }
+@media (max-width: 900px) { .lv-body { grid-template-columns: 1fr; } }
+.lv-net { position: relative; padding: 6px; }
+.lv-net svg { width: 100%; height: auto; display: block; }
+.lv-edge { stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 3 5; }
+.lv-trail { stroke-width: 2.5; stroke-linecap: round; opacity: 0; }
+.lv-pkt { filter: drop-shadow(0 0 6px currentColor); } .lv-pkt.ev { stroke: white; stroke-width: 1.5; }
+.lv-node .core { fill: color-mix(in srgb, var(--c) 22%, var(--panel)); stroke: var(--c); stroke-width: 2.5; transition: all .3s; }
+.lv-node .halo { fill: var(--c); opacity: 0; transition: opacity .4s; }
+.lv-node .ini { text-anchor: middle; font-weight: 700; font-size: 14px; fill: var(--text); }
+.lv-node .lab { text-anchor: middle; font-size: 11.5px; font-weight: 600; fill: var(--text); }
+.lv-node .cnt { text-anchor: middle; font-size: 10px; fill: var(--muted); }
+.lv-node.active .halo { opacity: .22; animation: lvThink 1s ease-in-out infinite alternate; }
+.lv-node.active .core { fill: color-mix(in srgb, var(--c) 45%, var(--panel)); }
+.lv-node.hit .core { stroke-width: 5; }
+.lv-node.ev .halo { opacity: .35; fill: var(--amber); }
+.lv-node.final .halo { opacity: .4; fill: var(--green); animation: lvThink .5s ease-in-out infinite alternate; }
+@keyframes lvThink { from { transform: scale(.9); } to { transform: scale(1.12); } }
+.lv-banner { position: absolute; left: 50%; top: 10px; transform: translate(-50%, -8px); opacity: 0; transition: all .35s; pointer-events: none;
+  padding: 4px 14px; border-radius: 99px; font-size: 12.5px; font-weight: 700; background: var(--accent); color: white; }
+.lv-banner.show { opacity: 1; transform: translate(-50%, 0); } .lv-banner.final { background: var(--green); }
+.lv-feed { border-left: 1px solid var(--line); padding: 8px 10px; max-height: 330px; overflow: auto; font-size: 12.5px; }
+.lv-item { padding: 6px 8px; margin-bottom: 5px; border-radius: 8px; background: var(--panel2); border: 1px solid var(--line); animation: lvIn .4s ease-out; }
+.lv-item.round { background: none; border: none; color: var(--muted); text-align: center; padding: 2px; }
+.lv-item.final { border-color: var(--green); background: color-mix(in srgb, var(--green) 12%, var(--panel)); }
+.lv-item.proto { background: none; border-style: dashed; }
+@keyframes lvIn { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
+.lv-who { font-weight: 700; color: var(--c); }
+.lv-tag { font-size: 10.5px; padding: 0 6px; border-radius: 99px; background: var(--line); color: var(--muted); margin-left: 4px; }
+.lv-tag.warn { background: color-mix(in srgb, var(--amber) 25%, transparent); color: var(--amber); }
+.lv-txt { margin-top: 3px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.lv-mhead { display: flex; gap: 10px; align-items: baseline; padding: 10px 16px 4px; border-top: 1px solid var(--line); }
+.lv-matrix { padding: 2px 16px 14px; display: grid; gap: 4px; }
+.lv-mrow { display: flex; align-items: center; gap: 4px; }
+.lv-mlab { width: 34px; font-size: 11.5px; font-weight: 700; color: var(--c); }
+.lv-mscore { margin-left: 6px; font-size: 11px; }
+.lv-sq { width: 18px; height: 18px; border-radius: 5px; background: var(--line); transition: background .5s; }
+.lv-sq.ok { background: var(--green); } .lv-sq.bad { background: var(--red); }
+.lv-sq.run { background: var(--accent); animation: lvGlow .7s ease-in-out infinite alternate; box-shadow: 0 0 10px var(--accent); }
 .locked { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 13px; color: var(--muted); }
 .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .conn { display: flex; align-items: center; gap: 6px; font-size: 13px; padding: 4px 0; border-bottom: 1px solid var(--line); }
@@ -276,7 +339,7 @@ table.reg td.c { text-align: center; }
 <div class="cases-view" id="studiesView" hidden>
   <div class="clist">
     <div class="row"><button class="primary" onclick="newStudy('feasibility')">+ Feasibility study</button><button class="primary" onclick="newStudy('main')">+ Main study</button></div>
-    <button onclick="newStudy('feasibility', 'methods')" title="D0 vs the 2 AI-research and 2 business-research methods, on the development cases">+ Method comparison (D0 · A1 · A2 · B1 · B2)</button>
+    <button onclick="newStudy('feasibility', 'methods')" title="D0 vs the 4 AI-research and 4 business-research methods, on the development cases">+ Method comparison (D0 vs A1–A4 · B1–B4)</button>
     <p class="hint" style="margin:0">Order: run a feasibility study on development cases first; the main study on held-out cases is unlocked once the gate passes.</p>
     <div id="studyList"></div>
   </div>
@@ -759,6 +822,7 @@ function protoSummary(m, proto) {
   if (proto === "B2") rows.push(["Stand-up messages", m.b2_standup_msgs ?? 0], ["End-goal changes reported", m.b2_goal_changes ?? 0]);
   if (proto === "B3") rows.push(["Interaction windows", m.b3_windows ?? 0], ["Messages held → delivered in windows", `${m.b3_held ?? 0} → ${m.b3_delivered_in_windows ?? 0}`], ["Removed (superseded or over limit)", m.b3_deduped ?? 0], ["Urgent corrections let through", m.b3_urgent ?? 0]);
   if (proto === "B4") rows.push(["Threads opened · closed · expired", `${m.b4_threads ?? 0} · ${m.b4_closed ?? 0} · ${m.b4_expired ?? 0}`], ["Late replies dropped", m.b4_late_drops ?? 0], ["Repeated findings suppressed", m.b4_duplicates ?? 0]);
+  if (m.finals_too_early) rows.push(["Final answers held (evidence still arriving)", m.finals_too_early]);
   if (m.burstiness != null) rows.push(["Burstiness (−1 regular … +1 bursty)", m.burstiness]);
   if (m.evidence_to_coordinator_delay != null) rows.push(["Rounds from evidence to coordinator", m.evidence_to_coordinator_delay]);
   if (m.cross_domain_share != null) rows.push(["Messages combining 2+ specialists' evidence", `${m.cross_domain_msgs ?? 0} (${Math.round(m.cross_domain_share * 100)}%)`]);
@@ -863,6 +927,7 @@ function renderTrace() {
         b4_late_drop: () => `✂ late reply on expired thread ${esc(ev.thread)} from ${nm(ev.from)} dropped`,
         b4_duplicate: () => `♻ ${nm(ev.from)}'s finding on ${esc((ev.evidence_ids || []).join(", "))} not delivered: ${nm(ev.to)} already has it`,
         final_deferred: () => `⏳ final answer held until a centralize round`,
+        final_too_early: () => `⏳ ${nm(ev.node)}'s final answer held: evidence still arriving (answers count from round ${ev.min_round})`,
         a1_forward: () => `📄 ${esc(ev.evidence_id)} forwarded verbatim to ${nm(ev.to)} (cited by ${nm(ev.from)})`,
         a1_inhibited: () => `⊘ ${esc(ev.evidence_id)} to ${nm(ev.to)} cancelled: ${esc(ev.reason)}`,
         a1_claim: () => `↪ one-line claim from ${nm(ev.from)} to ${nm(ev.to)} (${num(ev.chars)} of ${num(ev.full_chars)} chars)`,
@@ -1054,7 +1119,7 @@ async function newStudy(kind, methods) {
   if (!pool.length) return toast(`No ${kind === "feasibility" ? "development" : "held-out"} cases for this network's role pack.`);
   const conds = methods === "methods" ? ["D0", ...ALLCONDS().filter(k => /^[AB]\d/.test(k))] : ["D0", "V1", "V2", "V3"];
   const r = await api("studies/new", { network_id: net.id, kind, conditions: conds, case_ids: pool.map(c => c.id),
-    name: `${methods === "methods" ? "Method comparison (D0 vs A1 A2 B1 B2)" : kind === "feasibility" ? "Feasibility" : "Main study"}: ${net.name}`,
+    name: `${methods === "methods" ? "Method comparison (D0 vs A1–A4, B1–B4)" : kind === "feasibility" ? "Feasibility" : "Main study"}: ${net.name}`,
     repetitions: kind === "feasibility" ? (methods === "methods" ? 2 : 1) : 3 });
   if (r.error) return toast(r.error);
   curStudy = null; await loadStudies(); openStudy(r.study.id);
@@ -1102,6 +1167,7 @@ function renderStudy() {
     ${total ? `<div class="field"><span>Progress: ${done}/${total}${s.plan.some(i => i.status === "failed") ? ` · ${s.plan.filter(i => i.status === "failed").length} failed` : ""}</span>
       <div class="bar" style="height:10px"><i style="width:${total ? 100 * done / total : 0}%"></i></div>
       ${s.resume_at ? `<span class="hint">Paused for a usage limit; resumes automatically at ${new Date(s.resume_at * 1000).toLocaleTimeString()}.</span>` : ""}</div>` : ""}
+    ${running ? `<div id="liveHost"></div>` : ""}
     <div class="row">
       ${draft ? `<button class="primary" onclick="lockStudy()">Lock (preregister)…</button><button class="danger" onclick="deleteStudy()">Delete draft</button>` : ""}
       ${["locked", "paused"].includes(s.status) ? `<button class="primary" onclick="studyAct('start')">${s.status === "paused" ? "▶ Resume" : "▶ Run study"}</button>` : ""}
@@ -1125,6 +1191,8 @@ function renderStudy() {
   el.innerHTML = `<div class="row"><h2 style="flex:1">${esc(s.name)}</h2><span class="st ${s.status === "done" ? "frozen" : s.status === "draft" ? "draft" : "reviewed"}">${s.status}</span></div>
     <div class="hint">${esc(s.kind)} study on network “${esc(s.network_name)}”</div>
     <div class="tabs" style="border:1px solid var(--line);border-radius:10px;overflow:hidden">${tabs}</div>${body}`;
+  const host = $("liveHost");
+  if (host) { host.appendChild(liveStage()); liveMatrix(); }   // the live stage survives re-renders (animations keep running)
 }
 
 function resultsHtml(a, s) {
@@ -1211,6 +1279,143 @@ async function reduceReps() {
 async function studyAct(a) { const r = await api(`studies/${curStudy.study.id}/${a}`, {}); if (r.error) return toast(r.error); loadStudies(); }
 async function deleteStudy() { if (!confirm("Delete this draft study?")) return; await api(`studies/${curStudy.study.id}/delete`, {}); curStudy = null; loadStudies(); }
 setInterval(() => { if (studyView && curStudy && ["running", "paused"].includes(curStudy.study.status)) { loadStudies(); } }, 5000);
+
+// ---------------------------------------------------------------- live stage: the run in progress, animated
+// A persistent element (re-attached after every re-render) so animations are not interrupted by the 5 s refresh.
+let LV = { el: null, runId: null, seen: 0, pos: {}, feedKeys: new Set() };
+function liveStage() {
+  if (LV.el) return LV.el;
+  const el = document.createElement("div");
+  el.className = "lv";
+  el.innerHTML = `
+    <div class="lv-head">
+      <svg class="lv-ring" viewBox="0 0 44 44"><circle cx="22" cy="22" r="18" class="bg"/><circle cx="22" cy="22" r="18" class="fg" id="lvRing"/></svg>
+      <div class="lv-title"><div class="lv-now"><span class="lv-dot"></span><span id="lvState">Connecting…</span></div>
+        <div id="lvTitle" class="lv-sub"></div></div>
+      <div class="lv-stats">
+        <div><b id="lvRound">–</b><span>round</span></div><div><b id="lvCalls">0</b><span>model calls</span></div>
+        <div><b id="lvMsgs">0</b><span>messages</span></div><div><b id="lvCost">$0</b><span>cost so far</span></div><div><b id="lvTime">0s</b><span>elapsed</span></div></div>
+    </div>
+    <div id="lvRounds" class="lv-rounds"></div>
+    <div class="lv-body">
+      <div class="lv-net"><svg id="lvSvg" viewBox="0 0 420 330"></svg><div id="lvBanner" class="lv-banner"></div></div>
+      <div class="lv-feed" id="lvFeed"></div>
+    </div>
+    <div class="lv-mhead"><b>All runs</b><span class="hint">each square is one run · green = solved · red = not solved · pulsing = now</span></div>
+    <div id="lvMatrix" class="lv-matrix"></div>`;
+  LV.el = el;
+  return el;
+}
+function liveMatrix() {
+  const m = LV.el && LV.el.querySelector("#lvMatrix"); if (!m || !curStudy) return;
+  const s = curStudy.study, done = s.plan.filter(i => i.status === "done").length;
+  const ring = LV.el.querySelector("#lvRing"), C = 2 * Math.PI * 18;
+  ring.style.strokeDasharray = C; ring.style.strokeDashoffset = C * (1 - done / Math.max(1, s.plan.length));
+  m.innerHTML = s.conditions.map(cond => {
+    const items = s.plan.filter(i => i.condition === cond).sort((a, b) => (a.case_id + a.rep).localeCompare(b.case_id + b.rep));
+    const ok = items.filter(i => i.result && i.result.joint_success).length, fin = items.filter(i => i.status === "done").length;
+    return `<div class="lv-mrow"><span class="lv-mlab" style="--c:${PCOLORS[cond] || "var(--accent)"}">${cond}</span>${items.map(i => {
+      const st = i.status === "running" ? "run" : i.status !== "done" ? "q" : i.result && i.result.joint_success ? "ok" : "bad";
+      const t = `${cond} · ${(CASES.find(c => c.id === i.case_id) || {}).title || i.case_id} · rep ${i.rep}${i.result ? ` · ${money(i.result.cost_usd)}` : ""}`;
+      return `<i class="lv-sq ${st}" title="${esc(t)}"></i>`; }).join("")}<span class="hint lv-mscore">${fin ? `${ok}/${fin}` : ""}</span></div>`;
+  }).join("");
+}
+function lvLayout(team) {
+  const W = 420, cx = W / 2, cy = 158, R = 104;
+  const coord = team.find(n => n.coordinator), others = team.filter(n => n !== coord);
+  const pos = {};
+  if (coord) pos[coord.id] = { x: cx, y: cy };
+  others.forEach((n, k) => { const a = -Math.PI / 2 + (2 * Math.PI * k) / others.length; pos[n.id] = { x: cx + R * 1.35 * Math.cos(a), y: cy + R * Math.sin(a) }; });
+  return pos;
+}
+function lvDrawTeam(L) {
+  const svg = LV.el.querySelector("#lvSvg"), pos = lvLayout(L.team); LV.pos = pos;
+  const coord = L.team.find(n => n.coordinator);
+  const spokes = L.team.filter(n => n !== coord).map(n => coord ? `<line class="lv-edge" x1="${pos[coord.id].x}" y1="${pos[coord.id].y}" x2="${pos[n.id].x}" y2="${pos[n.id].y}"/>` : "").join("");
+  svg.innerHTML = `<defs><radialGradient id="lvGlow"><stop offset="0%" stop-color="white" stop-opacity=".55"/><stop offset="100%" stop-color="white" stop-opacity="0"/></radialGradient></defs>
+    <g id="lvEdges">${spokes}</g><g id="lvFx"></g>
+    ${L.team.map(n => { const p = pos[n.id], r = n.coordinator ? 30 : 24; return `<g class="lv-node" id="lvn-${n.id}" style="--c:${n.color}" transform="translate(${p.x},${p.y})">
+      <circle class="halo" r="${r + 10}"/><circle class="core" r="${r}"/><text class="ini" dy="5">${esc(n.name.slice(0, 2))}</text>
+      <text class="lab" dy="${r + 16}">${esc(n.name)}</text><text class="cnt" id="lvc-${n.id}" dy="${r + 29}"></text></g>`; }).join("")}`;
+}
+function lvPulse(id, cls = "active", ms = 2600) {
+  const g = LV.el.querySelector(`#lvn-${id}`); if (!g) return;
+  g.classList.add(cls); clearTimeout(g["_t" + cls]); g["_t" + cls] = setTimeout(() => g.classList.remove(cls), ms);
+}
+function lvFly(from, to, color, kind) {
+  const a = LV.pos[from], b = LV.pos[to], fx = LV.el.querySelector("#lvFx"); if (!a || !b || !fx) return;
+  const ns = "http://www.w3.org/2000/svg";
+  const trail = document.createElementNS(ns, "line");
+  Object.entries({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, class: "lv-trail" }).forEach(([k, v]) => trail.setAttribute(k, v));
+  trail.style.stroke = color; fx.appendChild(trail);
+  const dot = document.createElementNS(ns, "circle");
+  dot.setAttribute("r", kind === "evidence" ? 6 : 5); dot.setAttribute("class", "lv-pkt" + (kind === "evidence" ? " ev" : ""));
+  dot.style.fill = color; fx.appendChild(dot);
+  const anim = dot.animate([{ transform: `translate(${a.x}px,${a.y}px) scale(.6)` }, { transform: `translate(${(a.x + b.x) / 2}px,${(a.y + b.y) / 2 - 18}px) scale(1.25)` },
+    { transform: `translate(${b.x}px,${b.y}px) scale(.8)` }], { duration: 1100, easing: "cubic-bezier(.4,.1,.3,1)" });
+  trail.animate([{ opacity: .9 }, { opacity: 0 }], { duration: 1500, easing: "ease-out" });
+  anim.onfinish = () => { dot.remove(); lvPulse(to, "hit", 700); };
+  setTimeout(() => trail.remove(), 1500);
+}
+function lvFeed(html, cls = "") {
+  const f = LV.el.querySelector("#lvFeed"), d = document.createElement("div");
+  d.className = "lv-item " + cls; d.innerHTML = html; f.prepend(d);
+  while (f.children.length > 40) f.lastChild.remove();
+}
+function lvBanner(text, cls) {
+  const b = LV.el.querySelector("#lvBanner"); b.className = "lv-banner show " + (cls || ""); b.textContent = text;
+  clearTimeout(b._t); b._t = setTimeout(() => b.className = "lv-banner", 2600);
+}
+function lvApply(L) {
+  const $l = id => LV.el.querySelector("#" + id);
+  if (L.state !== "running") {
+    $l("lvState").textContent = L.state === "scoring" ? "Scoring" : "Between runs";
+    $l("lvTitle").textContent = L.state === "scoring" ? "The blinded judge is grading this run's action plan…" : "Starting the next run…";
+    LV.el.classList.toggle("scoring", L.state === "scoring");
+    return;
+  }
+  LV.el.classList.remove("scoring");
+  const caseTitle = (CASES.find(c => c.id === L.case_id) || {}).title || L.case_id;
+  $l("lvState").textContent = "Now running";
+  $l("lvTitle").innerHTML = `<span class="lv-chip" style="--c:${PCOLORS[L.condition] || "var(--accent)"}">${esc(pname(L.condition))}</span> ${esc(caseTitle)} <span class="hint">· rep ${L.rep} · run #${L.order}</span>`;
+  $l("lvRound").textContent = L.round || 0; $l("lvCalls").textContent = L.calls || 0; $l("lvMsgs").textContent = L.messages || 0;
+  $l("lvCost").textContent = money(L.cost_usd || 0); $l("lvTime").textContent = L.seconds + "s";
+  $l("lvRounds").innerHTML = Array.from({ length: L.max_rounds }, (_, k) => `<i class="${k + 1 < L.round ? "done" : k + 1 === L.round ? "now" : ""}">${k + 1}</i>`).join("");
+  const fresh = L.run_id !== LV.runId;
+  if (fresh) { LV.runId = L.run_id; LV.seen = 0; LV.feedKeys.clear(); lvDrawTeam(L); $l("lvFeed").innerHTML = ""; }
+  Object.entries(L.agents || {}).forEach(([id, a]) => { const t = LV.el.querySelector(`#lvc-${id}`); if (t) t.textContent = a.calls ? `${a.calls} calls` : ""; });
+  const col = id => (L.team.find(n => n.id === id) || {}).color || "#888";
+  const nm = id => esc((L.nodes || {})[id] || id || "");
+  const newEv = (L.events || []).filter(e => e.i > LV.seen);
+  if (fresh && newEv.length > 8) newEv.splice(0, newEv.length - 8);   // joining mid-run: replay only the latest few
+  if (newEv.length) LV.seen = Math.max(...newEv.map(e => e.i));      // claim them now so the next poll doesn't replay them
+  const gap = Math.min(350, 1400 / Math.max(1, newEv.length));        // spread the animations over the poll interval
+  newEv.forEach((ev, k) => setTimeout(() => {
+    if (ev.type === "round") { lvBanner(`Round ${ev.round}`); lvFeed(`<b>Round ${ev.round}</b>`, "round"); }
+    else if (ev.type === "evidence") {
+      lvPulse(ev.to, "ev", 1800);
+      lvFeed(`📎 Evidence <b>${esc(ev.evidence_id)}</b> arrives at ${nm(ev.to)}${ev.correction ? ` <span class="lv-tag warn">correction</span>` : ""}`);
+    } else if (ev.type === "message") {
+      const to = ev.delivered_to || ev.to; lvPulse(ev.from); lvFly(ev.from, to, col(ev.from), "msg");
+      lvFeed(`<span class="lv-who" style="--c:${col(ev.from)}">${nm(ev.from)}</span> → <span class="lv-who" style="--c:${col(to)}">${nm(to)}</span>
+        ${ev.kind ? `<span class="lv-tag">${esc(ev.kind)}</span>` : ""}<div class="lv-txt">${esc(ev.content || "")}</div>`);
+    } else if (ev.type === "turn") { lvPulse(ev.node, "active", 1800); }
+    else if (ev.type === "final") { lvPulse(ev.node, "final", 6000); lvBanner("Final answer submitted", "final"); lvFeed(`🏁 <b>Final answer</b> by ${nm(ev.node)}`, "final"); }
+    else if (ev.type === "protocol") {
+      const w = String(ev.what || "");
+      if (w === "a1_forward" && ev.from && ev.to) lvFly(ev.from, ev.to, col(ev.from), "evidence");
+      const label = { final_too_early: "⏳ Final answer held: evidence still arriving", final_deferred: "⏳ Final answer held for the decision round",
+        b3_flush: "📦 Interaction window: held messages delivered", b4_thread_open: "🧵 Thread opened", a1_forward: "📄 Original evidence forwarded",
+        mode: `🔀 Mode: ${esc(ev.mode || "")}` }[w];
+      if (label) lvFeed(`<span class="hint">${label}${ev.node || ev.from ? " · " + nm(ev.node || ev.from) : ""}</span>`, "proto");
+    }
+  }, k * gap));
+}
+setInterval(async () => {
+  if (!(studyView && curStudy && curStudy.study.status === "running" && studyTab === "overview" && LV.el && LV.el.isConnected)) return;
+  const r = await api(`studies/${curStudy.study.id}/live`); if (r.error) return;
+  lvApply(r);
+}, 1500);
 
 /* ================= blinded review ================= */
 let RQ = [], curReview = null;
@@ -1424,7 +1629,12 @@ window.addEventListener("pagehide", () => {
   clearTimeout(saveTimer); saveTimer = null;
   fetch("/api/lab/networks/save", { method: "POST", keepalive: true, headers: {"Content-Type": "application/json"}, body: JSON.stringify({ network: net }) });
 });
-init();
+init().then(async () => {   // a study is running: open straight onto its live view
+  try {
+    const r = await api("studies"), s = (r.studies || []).find(x => x.status === "running");
+    if (s) { setView("studies"); await openStudy(s.id); }
+  } catch (e) { /* stay on the network view */ }
+});
 </script>
 </body>
 </html>

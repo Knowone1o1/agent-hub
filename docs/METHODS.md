@@ -24,6 +24,19 @@ were replaced because they aim to bring out each person's best contribution, not
 efficient. The business methods now come from research on communication *efficiency* (less interruption, less repetition,
 better timing).
 
+### Rule shared by every method: no final answer before the evidence is in
+*Added 11 Nov 2026, after the first Method comparison.* A final answer counts only from the round **after** the last
+scheduled evidence release, so that evidence has one round to reach the decision maker (messages arrive the round after
+they are sent). An earlier answer is held, and the author is told to confirm or revise it once the window opens; if
+nothing new reaches the Coordinator by then, the held answer stands. This applies to all methods (A3 already waited by
+design) and is logged as `final_too_early`. It can be switched off per network (`caps.min_final_after_evidence`).
+
+**Why:** in the first comparison (72 runs, 4 development cases) D0, A1, A2 and B4 failed the same two cases in every run.
+The cause and plan were right, but the Coordinator answered in round 2, before the round-2 evidence reached it, so a
+required item was never cited. The methods that solved everything (A3, B1, B2, B3) all happen to make the boss wait. Without
+the rule, most of the differences would measure *when the boss decides*, not *how information travels*. A live re-test of D0
+on both cases with the rule gave joint success in both, at the same cost.
+
 ---
 
 ## D0 · Coordinator-led (default)

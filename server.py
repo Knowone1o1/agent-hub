@@ -28,6 +28,8 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)   # Windows: no console pop-up per agent call
+
 ROOT = Path(__file__).resolve().parent
 DATA = ROOT / "data"
 ROOMS = DATA / "rooms"
@@ -240,7 +242,7 @@ def run_claude_cli(agent, prompt):
     if agent.get("web"):
         args += ["--allowedTools", "WebSearch", "WebFetch"]  # variadic flag: keep it last
     r = subprocess.run(args, input=prompt, capture_output=True, text=True, encoding="utf-8",
-                       cwd=str(SHARED), timeout=agent.get("timeout", 600))
+                       cwd=str(SHARED), timeout=agent.get("timeout", 600), creationflags=NO_WINDOW)
     if r.returncode != 0:
         raise RuntimeError((r.stderr or r.stdout or "claude exited with an error").strip()[-1500:])
     return r.stdout.strip()
@@ -257,7 +259,7 @@ def run_codex_cli(agent, prompt):
     args += agent.get("extra_args", []) + ["-"]
     try:
         r = subprocess.run(args, input=prompt, capture_output=True, text=True, encoding="utf-8",
-                           cwd=str(SHARED), timeout=agent.get("timeout", 600))
+                           cwd=str(SHARED), timeout=agent.get("timeout", 600), creationflags=NO_WINDOW)
         if out.exists() and out.read_text(encoding="utf-8").strip():
             return out.read_text(encoding="utf-8").strip()
         raise RuntimeError((r.stderr or r.stdout or "codex returned nothing").strip()[-1500:])
