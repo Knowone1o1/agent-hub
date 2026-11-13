@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Studio</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧭</text></svg>">
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<div class="sky" aria-hidden="true"><i></i><i></i><i></i></div>
+
+<div class="app">
+  <!-- sidebar: projects + navigation -->
+  <aside class="sidebar">
+    <div class="brand"><span class="logo">◆</span><b>Agent Studio</b></div>
+
+    <div class="sb-sec">
+      <div class="sb-h"><span>Projects</span><button class="iconbtn" id="newProjBtn" title="New project">＋</button></div>
+      <nav class="projlist" id="projList" aria-label="Projects"></nav>
+    </div>
+
+    <div class="sb-sec">
+      <div class="sb-h"><span>View</span></div>
+      <nav class="navlist" id="navList" aria-label="Views">
+        <button data-view="floor"><span class="ic">🏠</span>Studio floor<span class="cnt" id="cntFloor"></span></button>
+        <button data-view="board"><span class="ic">📋</span>Board<span class="cnt" id="cntBoard"></span></button>
+        <button data-view="activity"><span class="ic">📜</span>Activity<span class="cnt" id="cntActivity"></span></button>
+        <button data-view="memory"><span class="ic">🧠</span>Project memory</button>
+      </nav>
+    </div>
+
+    <div class="sb-crew" id="sbCrew" title="Everyone working right now"></div>
+
+    <div class="sb-foot">
+      <button class="navbtn" id="settingsBtn"><span class="ic">⚙</span>Settings</button>
+      <div class="cli" id="cliBadge" title="Checking the claude CLI…"><span class="dot"></span><span class="txt">Checking CLI…</span></div>
+    </div>
+  </aside>
+
+  <!-- main area: header + one view at a time -->
+  <section class="main">
+    <header class="mhead" id="mhead"></header>
+
+    <div class="view" id="view-floor">
+      <div class="desk-principal" id="principalDesk"></div>
+      <div class="zone zone-active">
+        <div class="zone-h"><h2>Active roster</h2><span class="hint" id="activeHint"></span></div>
+        <div class="room-wrap">
+          <div class="room" id="room">
+            <div class="room-art"></div>
+            <div class="room-glow"><i style="left:22.4%"></i><i style="left:50%"></i><i style="left:77.6%"></i></div>
+            <div id="deskRow"></div>
+            <div id="walkers"></div>
+            <div class="room-empty" id="roomEmpty" hidden>The studio is empty. Drag an agent up from the Sideline, or press ↻ Re-staff.</div>
+          </div>
+        </div>
+      </div>
+      <div class="floor-low">
+        <div class="zone zone-bench">
+          <div class="zone-h"><h2>The Sideline</h2><span class="hint">benched &amp; available · asleep, using no quota · drag up to draft</span></div>
+          <div class="bench-wrap"><div class="bench-seats" id="bench"></div><div class="bench"><i></i><i></i></div></div>
+        </div>
+        <div class="zone zone-else" id="elseZone">
+          <div class="zone-h"><h2>On other projects</h2><span class="hint">locked · one project per agent</span></div>
+          <div class="mini-row" id="elsewhere"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="view" id="view-board" hidden>
+      <div class="view-h"><h2>Board</h2><span class="hint">synced with .project-cache/STATUS.md · drag cards between columns</span>
+        <form class="addtask" id="addTask">
+          <input id="taskTitle" placeholder="Add a task…" maxlength="160" autocomplete="off">
+          <select id="taskWho"></select><button class="btn sm primary">Add</button>
+        </form></div>
+      <div class="kanban" id="kanban"></div>
+    </div>
+
+    <div class="view" id="view-activity" hidden>
+      <div class="view-h"><h2>Activity</h2><span class="hint">.project-cache/CHANGELOG.log · newest first</span></div>
+      <div class="timeline" id="changelog"></div>
+    </div>
+
+    <div class="view" id="view-memory" hidden>
+      <div class="view-h"><h2>Project memory</h2><span class="hint">.project-cache/CONTEXT.md · injected into every agent that works on this project · drop files here to add them to inputs/</span></div>
+      <article class="memory" id="memory"></article>
+    </div>
+
+    <div class="empty" id="empty" hidden></div>
+  </section>
+</div>
+
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" aria-hidden="true"></aside>
+<div class="modal" id="modal" hidden></div>
+<div class="toast" id="toast"></div>
+
+<script src="/static/avatar.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

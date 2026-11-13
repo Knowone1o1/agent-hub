@@ -1,15 +1,12 @@
 """
-Agent Hub desktop app: a native Windows window (WebView2), no browser.
+Agent Studio desktop window: a native Windows window (WebView2) around the local studio server. No browser.
 
-  pythonw desktop\\app.py              -> Agent Hub (chats, projects, Agent Lab)
-  pythonw desktop\\app.py --dashboard  -> Team dashboard window
-  pythonw desktop\\app.py --lab        -> opens straight into the Agent Lab
+  pythonw desktop\\app.py             open the studio (starts the server invisibly if needed)
+  pythonw desktop\\app.py --devtools  same, with the WebView2 dev tools enabled
 
-It starts the local hub engine (server.py) invisibly if it isn't running yet. When the last window closes the engine is
-stopped too, unless a Lab study is running (then it keeps working in the background; reopen the app to watch it).
-
-Needs: Python 3.10+, `pip install pythonnet`, the .NET 8+ Windows Desktop runtime and the WebView2 runtime
-(both preinstalled on current Windows 11). The WebView2 libraries are bundled in desktop/lib.
+When the window closes, the server stops too, unless an agent or sprint is still working (it then finishes in the
+background; reopen the window to watch). Needs `pip install pythonnet`, plus the .NET Desktop runtime and the WebView2
+runtime (both standard on Windows 11). The WebView2 libraries are bundled in desktop/lib.
 """
 import ctypes
 import json
@@ -25,12 +22,12 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 LIB = HERE / "lib"
-PORT = 8765
+PORT = int(os.environ.get("STUDIO_PORT", "8777"))
 URL = f"http://127.0.0.1:{PORT}"
 NO_WINDOW, DETACHED = 0x08000000, 0x00000008
 
 
-def message(text, title="Agent Hub"):
+def message(text, title="Agent Studio"):
     ctypes.windll.user32.MessageBoxW(0, text, title, 0x10)
 
 
@@ -45,21 +42,22 @@ def server_up():
 def start_server():
     exe = Path(sys.executable)
     pyw = exe.with_name("pythonw.exe")
-    (ROOT / "data").mkdir(exist_ok=True)
-    log = open(ROOT / "data" / "server.log", "a", encoding="utf-8")
-    subprocess.Popen([str(pyw if pyw.exists() else exe), str(ROOT / "server.py")], cwd=str(ROOT), stdout=log, stderr=log,
-                     stdin=subprocess.DEVNULL, creationflags=NO_WINDOW | DETACHED)
-    for _ in range(60):
+    (ROOT / "state").mkdir(exist_ok=True)
+    log = open(ROOT / "state" / "server.log", "a", encoding="utf-8")
+    subprocess.Popen([str(pyw if pyw.exists() else exe), str(ROOT / "run.py"), "--no-browser"], cwd=str(ROOT),
+                     stdout=log, stderr=log, stdin=subprocess.DEVNULL, creationflags=NO_WINDOW | DETACHED)
+    for _ in range(80):
         if server_up():
             return True
         time.sleep(0.25)
     return False
 
 
-def study_running():
+def anything_working():
     try:
-        r = json.load(urllib.request.urlopen(URL + "/api/lab/studies", timeout=3))
-        return bool(r.get("runner", {}).get("alive"))
+        st = json.load(urllib.request.urlopen(URL + "/api/state", timeout=3))
+        return any(a["live"]["state"] in ("working", "thinking") for a in st["agents"]) or \
+            any((p.get("sprint") or {}).get("running") for p in st["projects"])
     except Exception:
         return False
 
@@ -72,35 +70,30 @@ def stop_server():
 
 
 def load_dotnet():
-    """Modern .NET with the Windows Desktop framework (works on ARM64 and x64)."""
     from clr_loader import get_coreclr
     from pythonnet import set_runtime
-    set_runtime(get_coreclr(runtime_config=str(HERE / "agenthub.runtimeconfig.json")))
+    set_runtime(get_coreclr(runtime_config=str(HERE / "studio.runtimeconfig.json")))
     import clr
     for ref in ("System.Windows.Forms", "System.Drawing", "System.Drawing.Primitives", "System.Drawing.Common"):
         try:
             clr.AddReference(ref)
         except Exception:
             pass
-    # WebView2Loader.dll must match the process architecture
     loader_dir = LIB if platform.machine().upper() in ("ARM64", "AARCH64") else LIB / "x64"
     os.environ["PATH"] = f"{loader_dir};{LIB};" + os.environ.get("PATH", "")
     ctypes.windll.kernel32.SetDllDirectoryW(str(loader_dir))
     clr.AddReference(str(LIB / "Microsoft.Web.WebView2.Core.dll"))
     clr.AddReference(str(LIB / "Microsoft.Web.WebView2.WinForms.dll"))
-    return clr
 
 
-def run_ui(path, title, size, icon):
-    ctypes.windll.ole32.CoInitializeEx(None, 0x2)  # COINIT_APARTMENTTHREADED: WinForms + WebView2 need an STA thread
-    # own taskbar identity, so Windows shows the Agent Hub icon instead of grouping it under Python
-    app_id = "AgentHub.Dashboard" if "--dashboard" in sys.argv else "AgentHub.App"
-    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(app_id)
+def run_ui():
+    ctypes.windll.ole32.CoInitializeEx(None, 0x2)   # STA thread for WinForms + WebView2
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("AgentStudio.App")
     load_dotnet()
     import System
     import System.Windows.Forms as WinForms
-    from System.Drawing import Size, Icon
-    from Microsoft.Web.WebView2.WinForms import WebView2, CoreWebView2CreationProperties
+    from System.Drawing import Color, Icon, Size
+    from Microsoft.Web.WebView2.WinForms import CoreWebView2CreationProperties, WebView2
 
     WinForms.Application.EnableVisualStyles()
     try:
@@ -108,63 +101,58 @@ def run_ui(path, title, size, icon):
     except Exception:
         pass
     form = WinForms.Form()
-    form.Text = title
-    form.Size = Size(*size)
+    form.Text = "Agent Studio"
+    form.Size = Size(1560, 960)
+    form.BackColor = Color.FromArgb(13, 14, 20)
     form.StartPosition = WinForms.FormStartPosition.CenterScreen
-    if icon.exists():
-        form.Icon = Icon(str(icon))
-    if "--dashboard" in sys.argv:
+    work = WinForms.Screen.PrimaryScreen.WorkingArea
+    if work.Width < 1700 or work.Height < 1000:   # smaller screens: use all of it
         form.WindowState = WinForms.FormWindowState.Maximized
-
+    if (HERE / "studio.ico").exists():
+        form.Icon = Icon(str(HERE / "studio.ico"))
     web = WebView2()
     props = CoreWebView2CreationProperties()
-    props.UserDataFolder = str(ROOT / "data" / "app-webview")
+    props.UserDataFolder = str(ROOT / "state" / "webview")
     web.CreationProperties = props
+    web.DefaultBackgroundColor = Color.FromArgb(13, 14, 20)
     web.Dock = WinForms.DockStyle.Fill
     form.Controls.Add(web)
 
     def on_ready(sender, args):
         if not args.IsSuccess:
-            message(f"The app window could not start WebView2:\n{args.InitializationException}")
+            message(f"The window could not start WebView2:\n{args.InitializationException}")
             return
         core = web.CoreWebView2
         core.Settings.IsStatusBarEnabled = False
         core.Settings.AreDevToolsEnabled = "--devtools" in sys.argv
-        # keep the page title in the window title (e.g. "(1) Your turn · Team Dashboard")
-        core.DocumentTitleChanged += lambda s, e: setattr(form, "Text", core.DocumentTitle or title)
 
-        def on_new_window(s, e):  # window.open (e.g. the dashboard) -> a new app process, not a browser
-            target = str(e.Uri)
+        def on_new_window(s, e):
             e.Handled = True
-            if target.startswith(URL):
-                args = ["--dashboard"] if "/dashboard" in target else ["--url", target[len(URL):]]
-                pyw = Path(sys.executable).with_name("pythonw.exe")
-                subprocess.Popen([str(pyw if pyw.exists() else sys.executable), str(Path(__file__)), *args],
-                                 creationflags=DETACHED)
-            else:
-                os.startfile(target)  # external links still open in the user's browser
+            os.startfile(str(e.Uri))   # external links open in the user's browser
         core.NewWindowRequested += on_new_window
 
     web.CoreWebView2InitializationCompleted += on_ready
-    web.Source = System.Uri(URL + path)
+    web.Source = System.Uri(URL + "/")
 
-    if "--selftest" in sys.argv:  # open, check the page rendered, report to data/app-selftest.json, close
+    if "--selftest" in sys.argv:   # open, check the page rendered, write state/app-selftest.json, close
         timer = WinForms.Timer()
-        timer.Interval = 6000
+        timer.Interval = 7000
 
         def tick(s, e):
             timer.Stop()
-            report = {"ready": web.CoreWebView2 is not None, "title": form.Text}
+            report = {"ready": web.CoreWebView2 is not None}
+
             def got(task):
                 report["page"] = str(task.Result)
-                (ROOT / "data" / "app-selftest.json").write_text(json.dumps(report), encoding="utf-8")
+                (ROOT / "state" / "app-selftest.json").write_text(json.dumps(report), encoding="utf-8")
                 form.BeginInvoke(System.Action(form.Close))
             if web.CoreWebView2 is not None:
                 web.CoreWebView2.ExecuteScriptAsync(
-                    "JSON.stringify({title: document.title, body: document.body.innerText.slice(0, 80)})").ContinueWith(
+                    "JSON.stringify({title: document.title, cli: document.querySelector('#cliBadge').innerText, "
+                    "agents: document.querySelectorAll('[data-aid]').length})").ContinueWith(
                     System.Action[System.Threading.Tasks.Task[System.String]](got))
             else:
-                (ROOT / "data" / "app-selftest.json").write_text(json.dumps(report), encoding="utf-8")
+                (ROOT / "state" / "app-selftest.json").write_text(json.dumps(report), encoding="utf-8")
                 form.Close()
         timer.Tick += tick
         timer.Start()
@@ -174,25 +162,15 @@ def run_ui(path, title, size, icon):
 
 def main():
     if not server_up() and not start_server():
-        message(f"Agent Hub's engine could not start.\nSee {ROOT / 'data' / 'server.log'}")
+        message(f"Agent Studio's server could not start.\nSee {ROOT / 'state' / 'server.log'}")
         return
-    if "--dashboard" in sys.argv:
-        path, title, size, icon = "/dashboard", "Team Dashboard", (1600, 900), ROOT / "static" / "dashboard.ico"
-    else:
-        path = "/lab" if "--lab" in sys.argv else "/"
-        if "--url" in sys.argv:
-            path = sys.argv[sys.argv.index("--url") + 1]
-        title, size, icon = "Agent Hub", (1400, 900), ROOT / "static" / "app.ico"
     try:
-        run_ui(path, title, size, icon)
+        run_ui()
     except Exception as e:  # noqa: BLE001
-        message(f"Agent Hub couldn't open its window:\n{type(e).__name__}: {e}\n\n"
-                "It needs the .NET Desktop runtime and the WebView2 runtime (both standard on Windows 11), "
-                "and `pip install pythonnet`.")
+        message(f"Agent Studio couldn't open its window:\n{type(e).__name__}: {e}\n\n"
+                f"You can still use it in a browser at {URL}")
         return
-    # last window closed: stop the engine unless a study is still working or another app window is open
-    others = subprocess.run(["tasklist", "/FI", "IMAGENAME eq pythonw.exe", "/V", "/FO", "CSV"], capture_output=True, text=True).stdout
-    if "Agent Hub" not in others and "Team Dashboard" not in others and not study_running():
+    if not anything_working():
         stop_server()
 
 

@@ -1,17 +1,10 @@
-# --- personal / runtime data: stays on this PC -------------------------------
-# chat & project conversations, Lab runs/traces, studies, memory, logs, app browser data
-data/*
-# ...except the Lab's test cases (the benchmark) which are part of the project
-!data/lab/
-data/lab/*
-!data/lab/cases/
-# your personal profile (see profile.example.md)
-profile.md
-# files the Builder agent writes
-shared/
-
-# --- generated -----------------------------------------------------------------
+# project workspaces, logs and app state are local only
+projects/*
+!projects/.gitkeep
+state/
+.agents/.trash/
 __pycache__/
 *.pyc
 *.tmp
 *.log
+!templates/**/*.log

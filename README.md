@@ -1,111 +1,93 @@
-# Agent Hub
+# Agent Studio
 
-A desktop app for Windows where ChatGPT and a team of Claude agents work together, plus an **Agent Lab** for
-experiments on how multi-agent teams communicate (starting with supply-chain disruptions).
+A living, local multi-agent studio. Brief a project, let the **Principal** staff a team from your roster (and recruit
+new specialists if skills are missing), then watch every agent work in real time: sleeping on the Sideline, waking up
+with a glowing badge and a thought bubble with live step and progress when they're on a task.
 
-No API keys and no per-use billing: Claude agents run on your Claude Code login, ChatGPT runs in the ChatGPT app.
+**Runs only on your Claude subscription.** Every agent turn is a child process of your logged-in `claude` CLI
+(Claude Code): `claude -p --output-format stream-json --verbose --include-partial-messages`, inside the project folder.
+No Anthropic SDK, no `ANTHROPIC_API_KEY` (it is even removed from the child environment), no per-use billing.
+The header badge shows **Connected via Claude Subscription (CLI)** once `claude --version` succeeds.
 
-## Install and start
-Requirements: Windows 10/11, Python 3.10+, [Claude Code](https://claude.com/claude-code) signed in, and
-`pip install -r requirements.txt` (installs pythonnet for the native window). The .NET Desktop runtime and the
-WebView2 runtime ship with current Windows 11.
+## Install and launch (Windows)
+Requirements: Python 3.10+, and [Claude Code](https://claude.com/claude-code) installed and signed in (`claude` once).
 
-Start the app: `pythonw desktop\app.py` (or double-click `start.bat`). It opens in its own window, not a browser.
-- `--lab` opens straight into the Agent Lab, `--dashboard` opens the team dashboard (for a second monitor)
-- The engine (`server.py`) starts invisibly and stops when you close the app, unless a Lab study is still running
-- Logs: `data/server.log`
+```bash
+pip install -r requirements.txt
+```
 
-## Chats and projects
-- **Chats**: one-on-one with Claude (automatic) or ChatGPT (copy-paste relay).
-- **Projects**: a team led by a manager. By default ChatGPT manages and Claude agents (Researcher, Builder, Reviewer) do the work.
-  ChatGPT assigns tasks with `@Name`; those agents run automatically and their results go back to ChatGPT.
-- **Agents & teams**: build agents (job, instructions, engine, model) and save teams.
-- **About me**: a shared profile every agent reads (`profile.md`, never uploaded; see `profile.example.md`).
+```bash
+start.bat
+```
 
-## Agent Lab
-A lab for controlled experiments with multi-agent communication (`/lab`, or the 🧪 button in the app).
+`start.bat` opens Agent Studio in its own window (WebView2). Prefer a browser? Run `python run.py` and it opens
+http://127.0.0.1:8777. The server stops when you close the window, unless agents are still working.
 
-| Tab | What it does |
-|---|---|
-| **Network** | Drag agents onto a canvas and draw arrows for who may talk to whom. Fixed role packs (Supply chain, Software, General). Prompt bar to start a run; live view; agent deck with per-agent scores, tokens and cost; full trace. |
-| **Cases** | Test cases: a shared brief, evidence each specialist receives privately at set rounds (clues, distractors, corrections), and a hidden answer key and rubric. Draft → reviewed → frozen workflow. |
-| **Studies** | Every protocol × every case × several repetitions, preregistered and run in the background, with results, uncertainty ranges and CSV/JSONL exports. |
-| **Review** | Blinded spot-check: you score a random sample of answers yourself to check the AI judge. |
+## How it works
+1. **＋ New project** → write a brief (goals, constraints). The Principal reads it plus the whole roster, then proposes a
+   **Team Staffing Plan**: existing agents to draft (with reasons) and new specialists to recruit (name, avatar, colour,
+   personality, model, why). Tick or untick, then **Approve & Assemble Team**: recruits get a `.agents/<id>.md`
+   profile, the team is assigned, and `.project-cache/` is created from your brief.
+2. **▶ Run sprint**: the Principal assigns Up Next tasks to idle teammates (one each); they work in parallel. **🤖 Autopilot**
+   keeps planning and running sprints until the board is done (max cycles in ⚙ settings). **■ Stop** kills the turns.
+3. The Principal may move agents to **the Sideline** when their phase is done, and recall them later (e.g. the Judge
+   once code lands). It can never delete an agent: only you can, from the agent's drawer (with confirmation; the
+   profile goes to `.agents/.trash`).
+4. Click any agent for the **inspector**: bio, project, model, live terminal output, a direct prompt box, Sideline/Draft,
+   Stop and Delete.
 
-### The communication protocols, in plain words
-Every protocol uses the same team: one **Coordinator** (the boss who decides) and four **specialists**, for
-supply chain Demand, Inventory, Logistics and Supplier. Each specialist only sees its own evidence, so they must
-communicate to solve the case. The protocols differ only in **how information travels**:
+### Rules
+- **One project per agent.** Agents on another project show a 🔒 and can't be drafted until released.
+- **Instant onboarding.** Every turn injects the project's `CONTEXT.md`, `STATUS.md`, team list and recent changelog
+  into the agent's system prompt.
+- **Progress protocol.** Agents print `[STEP: …]` and `[PROGRESS: n/total | label]` while working, `[NEW_TASK: … @id]`
+  for follow-ups and finish with `[RESULT: …]`. The studio parses the stream live (SSE) into bubbles, the board and
+  the changelog.
+- **Tools.** Agents can Read/Write/Edit/Glob/Grep inside their project folder. Terminal commands (Bash, e.g. to run
+  tests) are off by default; turn them on in ⚙ settings.
 
-- **Free**: no rules beyond your arrows. Anyone may message anyone they have an arrow to. Good for exploring.
-- **D0 · Coordinator-led (the baseline)**: everything goes through the boss. Specialists report to the
-  Coordinator, and if one wants to tell another specialist something, the message goes to the Coordinator, who
-  decides whether to pass it on. *Like a classic hierarchy: well-coordinated, but the boss becomes a bottleneck and spends
-  effort just forwarding.*
-- **V1 · Relay bypass**: like D0, but a specialist may send a **finding backed by evidence** straight to another specialist
-  along a pre-approved path (e.g. Logistics → Inventory about delays). The Coordinator just gets a short "FYI". Questions and
-  decisions still go through the boss. *Saves the boss's time; the risk is that the boss misses something important.*
-- **V2 · Pull information**: like D0, but instead of sending the full report, a specialist sends a **one-line notice**
-  ("I have the transport report, handle H3"). Whoever needs the details asks for them. Corrections are always sent in full.
-  *Saves reading time on details nobody needs; the risk is that someone doesn't realise they needed it.*
-- **V3 · Early escalation**: like D0, plus an **alarm button**. If an agent sees evidence that contradicts something the
-  team relies on, it raises an alert: only the affected agent pauses, the owner of the evidence checks it, and work resumes.
-  *Stops the team building on a wrong fact; the risk is false alarms that slow things down.*
+## Folder structure
+```
+Agent Hub/
+├─ run.py                     starts the server (uvicorn, port 8777; STUDIO_PORT to change)
+├─ start.bat                  opens the desktop window (falls back to the browser)
+├─ requirements.txt
+├─ studio/                    backend (FastAPI)
+│  ├─ server.py               HTTP API + Server-Sent Events (/api/events)
+│  ├─ claude_cli.py           `claude --version` check, streamed `claude -p` runs, tag parsing
+│  ├─ runner.py               live agent state, agent turns, sprints & autopilot
+│  ├─ principal.py            brief → staffing plan, assemble team, sprint planning (bench/recall, never delete)
+│  ├─ projects.py             projects, one-project-per-agent locks, STATUS.md / CHANGELOG.log / CONTEXT.md
+│  ├─ agents.py               .agents/<id>.md character profiles (create, update, user-only delete)
+│  └─ bus.py                  thread-safe event bus for SSE
+├─ public/                    front end (vanilla JS + CSS, no build step, works offline)
+│  ├─ index.html · styles.css · app.js
+│  └─ avatar.js               SVG character faces (asleep / awake)
+├─ .agents/                   character profiles: principal, design, algorithm, code, judge (+ recruits)
+├─ templates/project/         default project template (.project-cache/CONTEXT.md, STATUS.md, CHANGELOG.log)
+├─ projects/<slug>/           each project's workspace (agents' cwd) + .project-cache/ (local only, not in git)
+├─ state/                     settings, logs, window data (local only)
+└─ desktop/                   native window (WebView2 via pythonnet)
+```
 
-**Methods from recent research** (details, sources and simplifications in [docs/METHODS.md](docs/METHODS.md)):
+## Agent profile format (`.agents/<id>.md`)
+```markdown
+---
+id: judge
+name: Themis
+role: Judge / Quality Critic
+avatar: ⚖️
+color: #60a5fa
+model: sonnet            # sonnet | opus | haiku
+tone: fair, exacting and constructive
+skills: code review, testing, QA
+kind: member             # "principal" for the lead
+---
+Free-form bio, personality and working style. This becomes the agent's persona in every turn.
+```
 
-- **A1 · Inhibitory evidence routing** (AI research, Siboni et al. 2026): the router forwards the *original evidence* an
-  agent cites, never its paraphrase or opinion, once per receiver per round, and cancels copies receivers already have.
-  *"Send me the source document, not your summary."*
-- **A2 · PACT action-state messages** (AI research, Huang et al. 2026): every message is a tiny record of Action, State and
-  Result; reasoning and small talk are stripped. *A strict status-report template.*
-- **B1 · Adaptive hierarchy** (business research, Abi-Esber et al., Academy of Management Journal 2026): flat rounds while
-  evidence comes in (anyone talks to anyone, no decisions), then centralized rounds where the boss collects positions and
-  decides. *Brainstorm openly, then the manager pulls it together.*
-- **A3 · DarkForest controlled disclosure** (AI research, Li et al. 2026): specialists don't talk; each gives a blind
-  answer, and the boss sees only a table of the candidate answers, their support and confidence. A strong majority can
-  override the boss. *"Less talk, higher accuracy."*
-- **A4 · Blackboard with volunteers** (AI research, Salemi et al. 2025/26): the boss posts requests on a board without naming
-  anyone; whoever can help volunteers, on a board only the boss reads. *Post the question to the whole team.*
-- **B2 · Stand-up check-ins** (business research, Ghosh & Wu, Organization Science 2023): every other round from round 3,
-  everyone broadcasts what they did, what's next, and whether the end goal changed. *The classic stand-up meeting.*
-- **B3 · Quiet time with interaction windows** (business research, Perlow, Administrative Science Quarterly 1999; Bernstein,
-  Shore & Lazer, PNAS 2018): two quiet rounds where messages are held and batched (duplicates removed, max 3 per agent; only
-  urgent corrections get through), then one interaction round where everything is delivered and the boss acts. *Office hours.*
-- **B4 · Burst threads with a novelty filter** (business research, Riedl & Woolley, Academy of Management Discoveries 2017): a
-  question opens a short thread everyone answers at once and the boss must close within two rounds; late replies are dropped,
-  and findings that repeat what the recipient already has are suppressed. *Short focused bursts, no repeating yourself.*
+## Costs
+Turns run on your Claude plan's usage. The dollar figures shown are Claude Code's API-equivalent estimates, for
+comparison only; you are not billed per use. Sleeping agents use nothing.
 
-The question the Lab answers: which method makes the team **cheaper per correct answer** than D0, and what does it cost in
-reliability? Each method changes exactly one thing compared with D0, so differences can be traced to that change. One rule is shared
-by all: a final answer only counts once every scheduled piece of evidence has been released and had a round to reach the
-boss, so no method wins just by waiting longer.
-Ready-made supply-chain networks for D0 and all eight methods (A1–A4, B1–B4) are set up, and **Studies → Method
-comparison** compares them.
-
-### Scoring
-A run is a **joint success** when (1) the root cause matches the answer key, (2) the required evidence is cited, and
-(3) a blinded AI judge rates the action plan acceptable (≥ 60% of rubric points). The main measure is
-**cost per joint success**. Each agent also gets a 0–100 score (outcome, accuracy, efficiency, communication).
-Costs are Claude Code's API-equivalent estimates, not a bill.
-
-Full design notes and progress: [docs/LAB_PLAN.md](docs/LAB_PLAN.md). Cases: `data/lab/cases/` (generated by
-`tools/seed_supply_cases.py`).
-
-## Adding agents by hand (advanced)
-Everything is stored in `agents.json`. Types:
-- `claude_cli`: a Claude agent (`model`: `"sonnet"`, `"opus"`, `"haiku"`, ...)
-- `manual`: any chat app you relay by hand (Gemini, Copilot, a second ChatGPT persona...)
-- `codex_cli`: OpenAI's Codex CLI with your ChatGPT plan (`npm install -g @openai/codex`, `codex login`)
-- `openai_compatible`: any OpenAI-style endpoint, e.g. a free local model in Ollama
-- A new kind of bot: write `run_x(agent, prompt) -> str` in `server.py` and add it to `ADAPTERS`.
-
-## Where things are
-| Path | Contents |
-|---|---|
-| `server.py` | the local engine (chats, projects, API) |
-| `lab.py`, `cases.py`, `scoring.py`, `studies.py` | Agent Lab engine, cases, scoring, studies |
-| `static/` | the app's screens |
-| `desktop/` | the native window (WebView2) |
-| `data/` | your conversations, runs and results: **local only, not in git** (except `data/lab/cases/`) |
-| `shared/` | files the Builder agent writes (local only) |
+The previous app (Agent Hub + Agent Lab) is archived: git tag `agent-hub-v1` and `Documents\Archive`.
