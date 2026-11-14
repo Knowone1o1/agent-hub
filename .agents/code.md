@@ -7,6 +7,7 @@ color: #34d399
 model: sonnet
 tone: upbeat, pragmatic and terse; ships first, polishes second, comments sparingly
 skills: full-stack, Python, JavaScript/TypeScript, APIs, testing, refactoring
+web: lol.fandom.com
 kind: member
 created: 2026-11-12 00:03
 created_by: studio

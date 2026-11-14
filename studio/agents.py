@@ -11,7 +11,25 @@ import time
 from . import AGENTS_DIR
 
 _lock = threading.Lock()
-FIELDS = ("id", "name", "role", "avatar", "color", "model", "tone", "skills", "look", "kind", "created", "created_by")
+FIELDS = ("id", "name", "role", "avatar", "color", "model", "tone", "skills", "look", "web", "kind", "created", "created_by")
+# web (optional): the only websites this agent may fetch, e.g. "web: arxiv.org, doi.org". Each becomes a
+#   WebFetch(domain:...) rule that Claude Code enforces itself. Used only when "Allow web" is on in Settings.
+#   Only the user can change it (the drawer or this file); the Principal and agents can't.
+WEB_DOMAIN = re.compile(r"^(?:\*\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)+$")
+
+
+def parse_web(value):
+    """'arxiv.org, WebFetch(domain:doi.org)' -> ['arxiv.org', 'doi.org'] (valid domains only, deduplicated)."""
+    if isinstance(value, (list, tuple)):
+        value = ",".join(map(str, value))
+    out = []
+    for part in re.split(r"[,\s]+", str(value or "")):
+        m = re.fullmatch(r"WebFetch\(domain:([^)]+)\)", part.strip(), re.I)
+        d = (m.group(1) if m else part).strip().lower()
+        d = re.sub(r"^https?://", "", d).split("/")[0]
+        if d and WEB_DOMAIN.match(d) and d not in out:
+            out.append(d)
+    return out[:40]
 # look (optional): "hat: beret, outfit: smock, hair: bob, hairColor: #7a5cff, skin: 0-5, eyes: round|happy|wide|lashes,
 #   mouth: smile|grin|smirk|open, glasses: none|round|square|monocle, extra: none|freckles|blush|mustache|beard"
 PALETTE = ["#f472b6", "#60a5fa", "#34d399", "#fbbf24", "#a78bfa", "#f87171", "#22d3ee", "#fb923c", "#4ade80", "#e879f9"]
@@ -41,12 +59,13 @@ def parse(text, fallback_id):
     meta.setdefault("tone", "clear and friendly")
     meta.setdefault("kind", "member")
     meta["skills"] = [s.strip() for s in meta.get("skills", "").split(",") if s.strip()]
+    meta["web"] = parse_web(meta.get("web", ""))
     meta["bio"] = body.strip()
     return meta
 
 
 def render(a):
-    head = "\n".join(f"{k}: {', '.join(a[k]) if k == 'skills' else a[k]}" for k in FIELDS if a.get(k) not in (None, "", []))
+    head = "\n".join(f"{k}: {', '.join(a[k]) if k in ('skills', 'web') else a[k]}" for k in FIELDS if a.get(k) not in (None, "", []))
     return f"---\n{head}\n---\n\n{a.get('bio', '').strip()}\n"
 
 
@@ -105,6 +124,8 @@ def update(aid, fields):
         for k in ("name", "role", "avatar", "color", "model", "tone", "bio"):
             if k in fields and fields[k] not in (None, ""):
                 a[k] = fields[k]
+        if "web" in fields:   # user-only (the drawer); an empty value removes web access
+            a["web"] = parse_web(fields["web"])
         if a["model"] not in MODELS:
             a["model"] = "sonnet"
         (AGENTS_DIR / f"{aid}.md").write_text(render(a), encoding="utf-8")

@@ -49,7 +49,7 @@ function setProject(slug) {
 }
 
 // ---------------------------------------------------------------- views (sidebar navigation)
-const VIEWS = ["floor", "board", "activity", "memory"];
+const VIEWS = ["floor", "chat", "board", "activity", "memory"];
 S.view = (() => { try { return localStorage.getItem("studio.view"); } catch (e) { return null; } })();
 if (!VIEWS.includes(S.view)) S.view = "floor";
 S.unread = 0;
@@ -59,12 +59,13 @@ function setView(v) {
   VIEWS.forEach(k => { $("view-" + k).hidden = none || k !== v; });
   document.querySelectorAll("#navList button").forEach(b => b.classList.toggle("on", b.dataset.view === v));
   if (v === "activity") S.unread = 0;
+  if (v === "chat") { S.chatUnread = 0; renderChat(); setTimeout(() => { const t = $("chatText"); if (t) t.focus(); }, 50); }
   renderCounts();
 }
 document.querySelectorAll("#navList button").forEach(b => b.onclick = () => setView(b.dataset.view));
 document.addEventListener("keydown", e => {   // 1-4 switch views (when not typing)
   if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName) || e.ctrlKey || e.altKey || e.metaKey) return;
-  const i = ["1", "2", "3", "4"].indexOf(e.key); if (i >= 0) setView(VIEWS[i]);
+  const i = ["1", "2", "3", "4", "5"].indexOf(e.key); if (i >= 0) setView(VIEWS[i]);
 });
 function renderCounts() {
   const proj = S.projects.find(p => p.slug === S.cur), tasks = (S.proj && S.proj.tasks) || [];
@@ -75,6 +76,93 @@ function renderCounts() {
   $("cntBoard").textContent = tasks.length ? `${prog ? prog + " ▸ " : ""}${up} up next` : "";
   $("cntActivity").textContent = S.unread ? `${S.unread} new` : "";
   $("cntActivity").classList.toggle("hot", S.unread > 0);
+  $("cntChat").textContent = S.chatUnread ? `${S.chatUnread} new` : "";
+  $("cntChat").classList.toggle("hot", S.chatUnread > 0);
+}
+
+// ---------------------------------------------------------------- talk to Sol
+S.chat = { slug: null, messages: [] }; S.chatUnread = 0;
+const SUGGEST = ["What's the status right now?", "What should we do next?", "Who's working on what?", "Anything blocking us?",
+                 "Summarise the input files for me", "Add a task to …"];
+function chatMd(t) {   // light Markdown: bold, inline code, bullets, line breaks
+  return esc(t).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/`([^`]+)`/g, "<code>$1</code>")
+    .split("\n").map(l => /^\s*[-*]\s+/.test(l) ? `<li>${l.replace(/^\s*[-*]\s+/, "")}</li>` : l).join("\n")
+    .replace(/(<li>.*?<\/li>\n?)+/gs, m => `<ul>${m.replace(/\n/g, "")}</ul>`).replace(/\n/g, "<br>");
+}
+function chatMsgHtml(m) {
+  const p = principalAgent() || { name: "Sol", color: "#fbbf24", avatar: "🧭" };
+  if (m.role === "user") return `<div class="cmsg me" data-i="${m.i}"><div class="ctext">${chatMd(m.text)}</div><span class="ctime">${esc((m.t || "").slice(11, 16))}</span></div>`;
+  const done = (m.done || []).map(d => `<span class="cact">${esc(d)}</span>`).join("");
+  const pend = (m.pending || []).map((x, k) => {
+    const res = x.resolved ? `<span class="cres">${x.resolved === "declined" ? "✕ declined" : "✓ " + esc(x.resolved)}</span>` : "";
+    const btns = x.resolved ? "" : `<button class="btn sm go" data-ok="${k}">${x.kind === "recruit" ? "✓ Approve recruit" : "▶ Start it"}</button><button class="btn sm" data-no="${k}">Not now</button>`;
+    if (x.kind === "recruit") {
+      const s = x.spec || {}, face = { id: s.name, name: s.name, role: s.role, color: s.color || "#5ee6c4", avatar: s.avatar || "🤖", look: s.look };
+      return `<div class="cpend"><span class="av">${avatarSVG(face, true)}</span><div><span class="new">PROPOSED RECRUIT</span><br><b>${esc(s.name)}</b> · ${esc(s.role || "")} · ${esc(s.model || "sonnet")}
+        <div class="hint">${esc(s.why || s.personality || "")}</div><div class="crow">${btns}${res}</div></div></div>`;
+    }
+    return `<div class="cpend"><span class="ic" style="font-size:22px">▶</span><div><b>${x.autopilot ? "Start Autopilot?" : "Start a sprint?"}</b>
+      <div class="hint">Sol hands out the next tasks and the team gets to work.</div><div class="crow">${btns}${res}</div></div></div>`;
+  }).join("");
+  return `<div class="cmsg sol" data-i="${m.i}"><span class="av">${avatarSVG(p, true, { badge: false })}</span>
+    <div class="cbody"><div class="ctext">${chatMd(m.text)}</div>${done ? `<div class="cacts">${done}</div>` : ""}${pend}
+    <span class="ctime">${esc((m.t || "").slice(11, 16))}${m.cost_usd ? ` · ≈ ${money(m.cost_usd)}` : ""}</span></div></div>`;
+}
+async function renderChat(force) {
+  if (!S.cur) return;
+  const p = principalAgent();
+  if (p) { $("chatAv").innerHTML = avatarSVG(p, awake(p)); $("chatName").textContent = `${p.name} ${p.avatar}`; }
+  if (S.chat.slug !== S.cur || force) {
+    try { S.chat = { slug: S.cur, messages: (await api("GET", `/api/projects/${S.cur}/chat`)).messages }; } catch (e) { return; }
+  }
+  const log = $("chatLog"), proj = S.projects.find(x => x.slug === S.cur);
+  log.innerHTML = S.chat.messages.map(chatMsgHtml).join("") || `<div class="chat-empty"><span class="av">${p ? avatarSVG(p, true) : ""}</span>
+    <b>Hi! I'm ${esc(p ? p.name : "Sol")}, your Principal on “${esc(proj ? proj.name : "")}”.</b>
+    <span class="hint">Ask me how things are going, change priorities, add or move tasks, bench or bring back teammates, or ask me to look something up in the project's files. I'll do it and tell you what I changed.</span></div>`;
+  log.querySelectorAll("[data-ok],[data-no]").forEach(b => b.onclick = async () => {
+    const i = +b.closest(".cmsg").dataset.i, approve = b.hasAttribute("data-ok"), which = +(b.dataset.ok ?? b.dataset.no);
+    try { await api("POST", `/api/projects/${S.cur}/chat/${i}/resolve`, { which, approve }); } catch (e) { toast(e.message); }
+  });
+  $("chatSugg").innerHTML = (S.chat.messages.length < 2 ? SUGGEST : SUGGEST.slice(0, 3)).map(s => `<button type="button" class="sugg">${esc(s)}</button>`).join("");
+  $("chatSugg").querySelectorAll(".sugg").forEach(b => b.onclick = () => {
+    const t = $("chatText"); t.value = b.textContent.replace("…", ""); t.focus(); if (!b.textContent.endsWith("…")) $("chatForm").requestSubmit();
+  });
+  renderChatThinking();
+  log.scrollTop = log.scrollHeight;
+}
+function renderChatThinking() {
+  const p = principalAgent(), box = $("chatThink"); if (!p || !box) return;
+  const last = S.chat.messages[S.chat.messages.length - 1];
+  const waiting = S.chat.slug === S.cur && last && last.role === "user";
+  box.hidden = !waiting;
+  if (!waiting) return;
+  if (!box._av) { $("chatThinkAv").innerHTML = avatarSVG(p, true, { badge: false }); box._av = true; }
+  const live = awake(p) ? p : { ...p, live: { step: S.chatWaitNote || "Reading your message", progress: null } };
+  setBubble($("chatThinkBubble"), live);
+  const log = $("chatLog"); log.scrollTop = log.scrollHeight;
+}
+$("chatForm").onsubmit = async e => {
+  e.preventDefault();
+  const t = $("chatText"), text = t.value.trim(); if (!text || !S.cur) return;
+  t.value = ""; t.style.height = "";
+  S.chatWaitNote = null;
+  try { await api("POST", `/api/projects/${S.cur}/chat`, { text }); } catch (err) { toast(err.message); t.value = text; }
+};
+$("chatText").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("chatForm").requestSubmit(); } });
+$("chatText").addEventListener("input", e => { const t = e.target; t.style.height = ""; t.style.height = Math.min(t.scrollHeight, 180) + "px"; });
+$("chatAttach").onclick = () => $("fileInput").click();
+$("chatProfile").onclick = () => { const p = principalAgent(); if (p) openDrawer(p.id); };
+function onChatEvent(ev) {
+  if (ev.slug !== S.cur) return;
+  if (ev.type === "chat") {
+    if (S.chat.slug === S.cur && !S.chat.messages.some(m => m.i === ev.message.i)) S.chat.messages.push(ev.message);
+    if (ev.message.role === "principal" && S.view !== "chat") { S.chatUnread++; renderCounts(); toast(`💬 ${(principalAgent() || {}).name || "Sol"} replied`); }
+  } else if (ev.type === "chat_update") {
+    const k = S.chat.messages.findIndex(m => m.i === ev.message.i); if (k >= 0) S.chat.messages[k] = ev.message;
+  } else if (ev.type === "chat_wait") {
+    S.chatWaitNote = "Finishing the sprint plan first, then I'll answer you";
+  }
+  if (S.view === "chat") renderChat(); else renderChatThinking();
 }
 function renderCrew() {   // everyone working right now, across all projects
   const busy = S.agents.filter(awake);
@@ -85,25 +173,23 @@ function renderCrew() {   // everyone working right now, across all projects
 function renderMemory() {
   const ctx = (S.proj && S.proj.context) || "";
   $("memory").innerHTML = ctx ? mdDoc(ctx) : `<span class="hint">No project selected.</span>`;
+  renderFiles();
 }
-(function memoryDrop() {   // drop files on Project memory to add them to the current project's inputs/
-  const v = $("view-memory");
-  v.addEventListener("dragover", e => { if (S.cur && e.dataTransfer.types.includes("Files")) { e.preventDefault(); v.classList.add("file-over"); } });
-  v.addEventListener("dragleave", e => { if (!v.contains(e.relatedTarget)) v.classList.remove("file-over"); });
-  v.addEventListener("drop", async e => {
-    v.classList.remove("file-over");
-    if (!S.cur || !e.dataTransfer.files.length) return;
-    e.preventDefault();
-    const files = [...e.dataTransfer.files];
-    if (files.some(f => f.size > 25 * 1048576)) return toast("Files are limited to 25 MB each.");
-    toast(`Adding ${files.length} file${files.length > 1 ? "s" : ""}…`);
-    try {
-      const payload = []; for (const f of files) payload.push({ name: f.name, data: await readB64(f) });
-      const r = await api("POST", `/api/projects/${S.cur}/files`, { files: payload });
-      toast(`Added to inputs/: ${r.files.map(f => f.name).join(", ")}`);
-    } catch (err) { toast(err.message); }
-  });
-})();
+async function renderFiles() {   // the project's inputs/ folder, shown above the memory document
+  const el = $("inputFiles"); if (!el) return;
+  if (!S.cur) { el.innerHTML = ""; return; }
+  let r; try { r = await api("GET", `/api/projects/${S.cur}/files`); } catch (e) { return; }
+  const total = r.files.reduce((s, f) => s + f.size, 0);
+  el.innerHTML = `<div class="files-h"><b>📎 Input files</b><span class="hint">${r.files.length ? `${r.files.length} file${r.files.length > 1 ? "s" : ""} · ${fmtSize(total)}` : "none yet"} · <code>inputs/</code></span>
+      <button class="btn sm" id="filesAdd">＋ Add files</button><button class="btn sm" id="filesOpen" title="${esc(r.folder)}">Open folder</button></div>
+    ${r.files.length ? `<div class="files-grid">${r.files.map(f => `<div class="fcard" title="${esc(f.name)}"><span>${FILE_ICON[f.kind] || "📦"}</span>
+      <div><b>${esc(f.name)}</b><i>${esc(f.kind)} · ${fmtSize(f.size)}</i></div></div>`).join("")}</div>`
+      : `<div class="hint" style="padding:6px 2px">Drop files anywhere in the window, or use ＋ Add files. Any size: big raw data is fine.</div>`}`;
+  $("filesAdd").onclick = () => $("fileInput").click();
+  $("filesOpen").onclick = () => api("POST", `/api/projects/${S.cur}/files/open`).catch(e => toast(e.message));
+}
+document.body.insertAdjacentHTML("beforeend", `<input type="file" id="fileInput" multiple hidden>`);
+$("fileInput").onchange = e => { addFilesToProject(e.target.files); e.target.value = ""; };
 function mdDoc(text) {   // headings, bullets, bold, inline code; HTML comments dropped
   return text.replace(/<!--[\s\S]*?-->/g, "").split("\n").reduce((acc, line) => {
     const h = line.match(/^(#{1,3})\s+(.*)$/);
@@ -448,7 +534,9 @@ function renderHeader() {   // project title, stats and sprint controls: visible
       <button class="btn go" id="sprintBtn" ${sp.running ? "disabled" : ""} title="The Principal assigns Up Next tasks to idle teammates, who work in parallel">▶ Run sprint</button>
       <button class="btn" id="autoBtn" ${sp.running ? "disabled" : ""} title="Keep planning and running sprints until the board is done (max ${S.settings.autopilot_cycles} cycles)">🤖 Autopilot</button>
       <button class="btn danger" id="stopBtn" ${busy ? "" : "disabled"}>■ Stop</button>
+      <button class="btn" id="filesBtn" title="Add files to this project's inputs/ folder (any size; you can also drop files anywhere in the window)">📎 Add files</button>
       <button class="btn" id="restaffBtn" title="Give the Principal a new brief to add agents">↻ Re-staff</button></div>`;
+  $("filesBtn").onclick = () => $("fileInput").click();
   $("sprintBtn").onclick = () => startSprint(false);
   $("autoBtn").onclick = () => startSprint(true);
   $("stopBtn").onclick = async () => { await api("POST", `/api/projects/${S.cur}/stop`); toast("Stopping the team…"); };
@@ -459,10 +547,12 @@ function renderPrincipal() {   // the Principal's desk: built once, then updated
   if (!p) { el.innerHTML = `<span class="hint">No Principal profile found (.agents/principal.md).</span>`; el._pid = null; return; }
   if (el._pid !== p.id) {
     el.innerHTML = `<div class="pdesk-av" data-aid="${esc(p.id)}" style="--c:${esc(p.color)}"><div class="pav"></div></div>
-      <div class="who"><b>${esc(p.name)} ${esc(p.avatar)}</b> <span class="chip">Principal · oversees every project</span><div class="sprint-note"></div></div>
+      <div class="who"><b>${esc(p.name)} ${esc(p.avatar)}</b> <span class="chip">Principal · oversees every project</span>
+        <button class="btn sm talk" id="talkSol">💬 Talk to ${esc(p.name)}</button><div class="sprint-note"></div></div>
       <div class="bubble pbubble" style="--c:${esc(p.color)}"></div>`;
     el._pid = p.id; el._on = null;
-    el.querySelector(".pdesk-av").onclick = () => openDrawer(p.id);
+    el.querySelector(".pdesk-av").onclick = () => setView("chat");
+    el.querySelector("#talkSol").onclick = () => setView("chat");
   }
   const proj = S.proj && S.proj.project, on = awake(p), sp = (proj && proj.sprint) || {};
   if (el._on !== on) {   // swap the face only when Sol wakes up or falls asleep
@@ -488,7 +578,7 @@ async function startSprint(autopilot) {
 function patchAgent(id) {
   const a = agentById(id); if (!a) return;
   const on = awake(a);
-  if (a.kind === "principal") renderPrincipal();
+  if (a.kind === "principal") { renderPrincipal(); renderChatThinking(); }
   document.querySelectorAll(`[data-aid="${CSS.escape(id)}"]`).forEach(el => {
     if (el.classList.contains("walker")) return updateWalker(el, a);   // in the studio room: walk to the desk / back to strolling
     if (el.classList.contains("pdesk-av")) return;                      // handled by renderPrincipal (in place)
@@ -615,6 +705,11 @@ async function openDrawer(id) {
         <span>Created</span><span>${esc(a.created || "")} ${a.created_by ? `by ${esc(a.created_by)}` : ""}</span>
         <span>Usage</span><span>${a.live.calls || 0} turns this session · ≈ ${money(a.live.cost_usd)}</span>
         <span>Profile</span><span><code>.agents/${esc(a.id)}.md</code></span></div>
+      ${isP ? "" : `<div class="webbox"><div class="row"><b>🌐 Web access</b>
+          <span class="chip ${S.settings.allow_web ? (a.web.length ? "ok" : "") : "off"}">${!a.web.length ? "none" : S.settings.allow_web ? `${a.web.length} site${a.web.length > 1 ? "s" : ""} allowed` : "web is switched off in Settings"}</span></div>
+        <textarea id="drWeb" rows="2" placeholder="Sites this agent may fetch, e.g. arxiv.org, doi.org, lol.fandom.com (empty = no web)">${esc(a.web.join(", "))}</textarea>
+        <div class="dr-actions"><button class="btn sm" id="drWebSave">Save sites</button>
+          <span class="hint">Only these domains: Claude Code blocks everything else. Only you can change this.</span></div></div>`}
       <div class="bio">${md(a.bio)}</div>
       <div class="dr-actions">
         ${isP ? "" : a.project ? `<button class="btn" id="drRelease">🪑 Move to the Sideline</button>`
@@ -622,9 +717,11 @@ async function openDrawer(id) {
         <button class="btn" id="drStop" ${on ? "" : "disabled"}>■ Stop turn</button>
         ${isP ? "" : `<button class="btn danger" id="drDelete" style="margin-left:auto">🗑 Delete agent</button>`}
       </div>
-      <div class="ask"><b>Prompt ${esc(a.name)} directly</b>
+      ${isP ? `<div class="ask"><b>Talk to ${esc(a.name)}</b><span class="hint">${esc(a.name)} keeps a conversation per project and can change the board and team for you.</span>
+          <div class="dr-actions"><button class="btn primary" id="drChat">💬 Open the chat${cur ? ` for “${esc(cur.name)}”` : ""}</button></div></div>`
+      : `<div class="ask"><b>Prompt ${esc(a.name)} directly</b>
         <textarea id="drAsk" placeholder="${a.project ? `Works inside “${esc(proj ? proj.name : a.project)}” with its shared memory…` : "On the Sideline: a chat without project access…"}"></textarea>
-        <div class="dr-actions"><button class="btn primary" id="drSend">Send</button><span class="hint">Runs one \`claude -p\` turn on your subscription.</span></div></div>
+        <div class="dr-actions"><button class="btn primary" id="drSend">Send</button><span class="hint">Runs one \`claude -p\` turn on your subscription.</span></div></div>`}
       <div><b>Terminal output</b><div class="term" id="drTerm"></div></div>
     </div>`;
   $("drTerm").innerHTML = data.log.map(logLine).join("");
@@ -632,6 +729,13 @@ async function openDrawer(id) {
   renderDrawerLive();
   $("drClose").onclick = closeDrawer;
   $("drModel").onchange = async e => { await api("PATCH", `/api/agents/${id}`, { model: e.target.value }); toast(`${a.name} now uses ${e.target.value}`); };
+  if ($("drWebSave")) $("drWebSave").onclick = async () => {
+    try {
+      const r = await api("PATCH", `/api/agents/${id}`, { web: $("drWeb").value });
+      toast(r.agent.web.length ? `${a.name} may fetch: ${r.agent.web.join(", ")}` : `${a.name} has no web access`);
+      openDrawer(id);
+    } catch (e) { toast(e.message); }
+  };
   if ($("drRelease")) $("drRelease").onclick = async () => { try { await api("POST", `/api/agents/${id}/release`); toast(`${a.name} is resting on the Sideline`); openDrawer(id); } catch (e) { toast(e.message); } };
   if ($("drAssign")) $("drAssign").onclick = async () => { try { await api("POST", `/api/agents/${id}/assign`, { slug: S.cur }); toast(`${a.name} joined the team`); openDrawer(id); } catch (e) { toast(e.message); } };
   $("drStop").onclick = () => api("POST", `/api/agents/${id}/stop`);
@@ -639,7 +743,8 @@ async function openDrawer(id) {
     if (!confirm(`Delete ${a.name} (${a.role})?\n\nThe profile is moved to .agents/.trash, and they leave their project. Only you can do this.`)) return;
     try { await api("DELETE", `/api/agents/${id}`, { confirm: id }); toast(`${a.name} was deleted`); closeDrawer(); } catch (e) { toast(e.message); }
   };
-  $("drSend").onclick = async () => {
+  if ($("drChat")) $("drChat").onclick = () => { closeDrawer(); setView("chat"); };
+  if ($("drSend")) $("drSend").onclick = async () => {
     const text = $("drAsk").value.trim(); if (!text) return;
     try { await api("POST", `/api/agents/${id}/prompt`, { text }); $("drAsk").value = ""; toast(`${a.name} is on it`); } catch (e) { toast(e.message); }
   };
@@ -662,37 +767,94 @@ function logLine(e) { return `<div class="k-${esc(e.kind)}"><span class="ts">${e
 
 // ---------------------------------------------------------------- brief -> staffing proposal -> assemble
 function closeModal() { $("modal").hidden = true; $("modal").innerHTML = ""; }
-// attachments for the brief being written: { token, files: [{name, size, kind}], busy }
-S.brief = { token: null, files: [], busy: 0 };
-const FILE_ICON = { text: "📄", image: "🖼️", pdf: "📕", file: "📦" };
-const fmtSize = n => n > 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB";
+// ---------------------------------------------------------------- file uploads: streamed (no size limit), with progress
+const FILE_ICON = { text: "📄", image: "🖼️", pdf: "📕", data: "📊", file: "📦" };
+const fmtSize = n => n >= 1073741824 ? (n / 1073741824).toFixed(2) + " GB" : n >= 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB";
+function uploadRaw(url, file, onProgress) {   // the file itself is the request body, so nothing is held in memory
+  return new Promise((ok, bad) => {
+    const x = new XMLHttpRequest();
+    x.open("POST", url);
+    x.setRequestHeader("Content-Type", "application/octet-stream");
+    x.upload.onprogress = e => { if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total); };
+    x.onload = () => { let d = {}; try { d = JSON.parse(x.responseText); } catch (e) { /* empty */ }
+      x.status < 300 ? ok(d) : bad(new Error(d.detail || `Upload failed (${x.status})`)); };
+    x.onerror = () => bad(new Error("Upload failed: the studio server didn't respond."));
+    x.send(file);
+  });
+}
+// the upload tray (bottom-right): one row per file with a live progress bar
+const TRAY = [];
+function renderTray() {
+  let t = $("tray");
+  if (!t) { document.body.insertAdjacentHTML("beforeend", `<div class="tray" id="tray"></div>`); t = $("tray"); }
+  t.hidden = !TRAY.length;
+  t.innerHTML = TRAY.map(u => `<div class="trow ${u.state}"><span>${FILE_ICON[u.kind] || "📦"}</span><div class="tmain"><div class="tname"><b>${esc(u.name)}</b>
+      <i>${u.state === "error" ? esc(u.error) : u.state === "done" ? "added to inputs/" : `${Math.round(u.p * 100)}% of ${fmtSize(u.size)}`}</i></div>
+      <div class="tbar"><i style="width:${Math.round(u.p * 100)}%"></i></div></div></div>`).join("");
+}
+function kindGuess(name) {
+  const ext = (name.match(/\.[^.]+$/) || [""])[0].toLowerCase();
+  if ([".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"].includes(ext)) return "image";
+  if (ext === ".pdf") return "pdf";
+  if ([".csv", ".tsv", ".json", ".jsonl", ".parquet", ".xlsx", ".xls", ".sqlite", ".db", ".zip", ".gz", ".feather", ".h5", ".npy", ".pkl"].includes(ext)) return "data";
+  return "file";
+}
+async function addFilesToProject(list, slug = S.cur) {
+  const proj = S.projects.find(p => p.slug === slug); if (!proj) return toast("Pick a project first.");
+  for (const f of [...list]) {
+    const u = { name: f.name, size: f.size, kind: kindGuess(f.name), p: 0, state: "up" }; TRAY.push(u); renderTray();
+    try {
+      await uploadRaw(`/api/projects/${encodeURIComponent(slug)}/files/raw?name=${encodeURIComponent(f.name)}`, f, p => { u.p = p; renderTray(); });
+      u.p = 1; u.state = "done";
+    } catch (e) { u.state = "error"; u.error = e.message; }
+    renderTray();
+    setTimeout(() => { const i = TRAY.indexOf(u); if (i >= 0 && u.state === "done") { TRAY.splice(i, 1); renderTray(); } }, 4000);
+  }
+  if (TRAY.some(u => u.state === "done")) toast(`Added to “${proj.name}” · the team sees them from their next turn`);
+}
+// drop files anywhere in the window (outside the brief) to add them to the current project, even while it's running
+(function globalDrop() {
+  document.body.insertAdjacentHTML("beforeend", `<div class="dropall" id="dropAll" hidden><div><span>📎</span><b id="dropAllTitle"></b><i>Files go to the project's inputs/ folder · any size</i></div></div>`);
+  let depth = 0;
+  const has = e => e.dataTransfer && [...e.dataTransfer.types].includes("Files");
+  const modalOpen = () => !$("modal").hidden;
+  window.addEventListener("dragenter", e => { if (!has(e) || modalOpen() || !S.cur) return; depth++;
+    const p = S.projects.find(x => x.slug === S.cur); $("dropAllTitle").textContent = `Drop to add to “${p ? p.name : ""}”`; $("dropAll").hidden = false; });
+  window.addEventListener("dragleave", e => { if (!has(e) || modalOpen()) return; depth = Math.max(0, depth - 1); if (!depth) $("dropAll").hidden = true; });
+  window.addEventListener("dragover", e => { if (has(e) && !modalOpen() && S.cur) e.preventDefault(); });
+  window.addEventListener("drop", e => {
+    if (!has(e) || modalOpen()) return;
+    e.preventDefault(); depth = 0; $("dropAll").hidden = true;
+    if (S.cur && e.dataTransfer.files.length) addFilesToProject(e.dataTransfer.files);
+  });
+})();
+
+// attachments for the brief being written: { token, files: [{name, size, kind}], pending: [{name, size, p}] }
+S.brief = { token: null, files: [], pending: [] };
 function renderAttachments() {
   const el = $("bFileList"); if (!el) return;
   el.innerHTML = S.brief.files.map(f => `<span class="fchip">${FILE_ICON[f.kind] || "📦"} <b>${esc(f.name)}</b><i>${fmtSize(f.size)}</i>
       <button type="button" title="Remove" data-rm="${esc(f.name)}">✕</button></span>`).join("")
-    + (S.brief.busy ? `<span class="fchip busy"><span class="spin"></span> uploading ${S.brief.busy} file${S.brief.busy > 1 ? "s" : ""}…</span>` : "");
+    + S.brief.pending.map(u => `<span class="fchip busy"><span class="spin"></span><b>${esc(u.name)}</b><i>${Math.round(u.p * 100)}% of ${fmtSize(u.size)}</i>
+      <span class="fbar"><i style="width:${Math.round(u.p * 100)}%"></i></span></span>`).join("");
   el.querySelectorAll("[data-rm]").forEach(b => b.onclick = async () => {
     try { const r = await api("DELETE", `/api/uploads/${S.brief.token}/${encodeURIComponent(b.dataset.rm)}`); S.brief.files = r.files; renderAttachments(); }
     catch (e) { toast(e.message); }
   });
-  const dz = $("bDrop"); if (dz) dz.classList.toggle("has", S.brief.files.length > 0 || S.brief.busy > 0);
+  const dz = $("bDrop"); if (dz) dz.classList.toggle("has", S.brief.files.length > 0 || S.brief.pending.length > 0);
 }
-const readB64 = f => new Promise((ok, bad) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(",")[1] || ""); r.onerror = bad; r.readAsDataURL(f); });
 async function addBriefFiles(list) {
-  const files = [...list].filter(f => f.size >= 0);
-  if (!files.length) return;
-  const big = files.find(f => f.size > 25 * 1048576);
-  if (big) return toast(`${big.name} is larger than 25 MB.`);
-  S.brief.busy += files.length; renderAttachments();
-  try {
-    for (const f of files) {   // one at a time keeps each request small
-      const r = await api("POST", "/api/uploads", { token: S.brief.token, files: [{ name: f.name, data: await readB64(f) }] });
-      S.brief.token = r.token; S.brief.files = r.files; S.brief.busy--; renderAttachments();
-    }
-  } catch (e) { toast(e.message); S.brief.busy = 0; renderAttachments(); }
+  for (const f of [...list]) {   // one at a time; each streams straight to disk
+    const u = { name: f.name, size: f.size, p: 0 }; S.brief.pending.push(u); renderAttachments();
+    try {
+      const r = await uploadRaw(`/api/uploads/raw?name=${encodeURIComponent(f.name)}&token=${S.brief.token || ""}`, f, p => { u.p = p; renderAttachments(); });
+      S.brief.token = r.token; S.brief.files = r.files;
+    } catch (e) { toast(`${f.name}: ${e.message}`); }
+    S.brief.pending.splice(S.brief.pending.indexOf(u), 1); renderAttachments();
+  }
 }
 function openBrief(slug, keep) {
-  if (!keep) S.brief = { token: null, files: [], busy: 0 };
+  if (!keep) S.brief = { token: null, files: [], pending: [] };
   const proj = slug ? S.projects.find(p => p.slug === slug) : null;
   $("modal").hidden = false;
   $("modal").innerHTML = `<form class="sheet" id="briefForm">
@@ -704,7 +866,7 @@ function openBrief(slug, keep) {
       <div class="dropzone" id="bDrop" tabindex="0" role="button" aria-label="Attach files">
         <input type="file" id="bFiles" multiple hidden>
         <div class="dz-msg"><span class="dz-ic">📎</span><div><b>Drop files here</b> or <u>browse</u><br>
-          <span class="hint">specs, data, designs, existing code, PDFs, images · up to 25 MB each · saved to the project's <code>inputs/</code> folder for every agent</span></div></div>
+          <span class="hint">specs, raw data, designs, existing code, PDFs, images · any size · saved to the project's <code>inputs/</code> folder for every agent</span></div></div>
         <div class="dz-files" id="bFileList"></div>
       </div></div>
     <div class="sheet-f"><span class="hint">Available now: ${S.agents.filter(a => a.kind !== "principal" && (!a.project || a.project === slug)).length} agents · locked elsewhere: ${S.agents.filter(a => a.project && a.project !== slug).length}</span>
@@ -721,7 +883,7 @@ function openBrief(slug, keep) {
   sheet.ondrop = e => { if (!e.dataTransfer.files.length) return; e.preventDefault(); dz.classList.remove("over"); addBriefFiles(e.dataTransfer.files); };
   $("briefForm").onsubmit = async e => {
     e.preventDefault();
-    if (S.brief.busy) return toast("Wait for the files to finish uploading.");
+    if (S.brief.pending.length) return toast("Wait for the files to finish uploading.");
     const name = $("bName").value.trim(), brief = $("bBrief").value.trim();
     showThinking(name);
     try { const prop = await api("POST", "/api/projects/propose", { name, brief, slug: slug || null, upload: S.brief.token }); S.busyModal = false; showProposal(name, brief, prop, slug); }
@@ -771,7 +933,7 @@ function showProposal(name, brief, prop, slug) {
     $("pGo").disabled = true; $("pGo").textContent = "Assembling…";
     try {
       const r = await api("POST", "/api/projects", { name, brief, summary: prop.summary, draft, recruit, tasks: taskList, slug: slug || null, upload: S.brief.token });
-      S.brief = { token: null, files: [], busy: 0 };
+      S.brief = { token: null, files: [], pending: [] };
       closeModal(); toast(`Team assembled for “${r.project.name}”`);
       S.cur = r.project.slug; try { localStorage.setItem("studio.project", S.cur); } catch (e) { /* ignore */ }
       await load();
@@ -787,12 +949,14 @@ $("settingsBtn").onclick = () => {
     <label class="field"><span>Agents working in parallel (max)</span><input type="number" id="sPar" min="1" max="8" value="${s.max_parallel}"></label>
     <label class="field"><span>Autopilot: maximum sprint cycles per run</span><input type="number" id="sCyc" min="1" max="20" value="${s.autopilot_cycles}"></label>
     <label class="tasklist"><label><input type="checkbox" id="sBash" ${s.allow_bash ? "checked" : ""}>
-      Let agents run terminal commands (Bash) inside the project folder, e.g. to run tests. Off by default: only file reading and editing.</label></label>
+      Let agents run terminal commands (Bash), e.g. to run tests or process data. Commands start in the project folder but aren't locked to it.</label>
+      <label><input type="checkbox" id="sWeb" ${s.allow_web ? "checked" : ""}>
+      Allow web (master switch). Each agent may then fetch pages <b>only</b> from the sites in its own web list (set in its profile drawer); Claude Code blocks every other site. Web search stays off.</label></label>
     <div class="sheet-f"><span class="hint">Every turn runs on your Claude subscription via the CLI.</span>
       <button type="button" class="btn" onclick="closeModal()">Cancel</button><button class="btn primary">Save</button></div></form>`;
   $("setForm").onsubmit = async e => {
     e.preventDefault();
-    S.settings = await api("PUT", "/api/settings", { max_parallel: +$("sPar").value, autopilot_cycles: +$("sCyc").value, allow_bash: $("sBash").checked });
+    S.settings = await api("PUT", "/api/settings", { max_parallel: +$("sPar").value, autopilot_cycles: +$("sCyc").value, allow_bash: $("sBash").checked, allow_web: $("sWeb").checked });
     closeModal(); toast("Settings saved"); renderPrincipal();
   };
 };
@@ -831,6 +995,8 @@ function connect() {
       if (S.proj && S.proj.project.slug === ev.slug) S.proj.project.sprint = ev.sprint;
       renderTabs(); if (ev.slug === S.cur) renderPrincipal();
     } else if (ev.type === "roster") softRefresh();
+    else if (ev.type === "files") { if (ev.slug === S.cur) renderFiles(); }
+    else if (ev.type === "chat" || ev.type === "chat_update" || ev.type === "chat_wait") onChatEvent(ev);
   };
   es.onerror = () => { $("cliBadge").classList.add("bad"); setTimeout(() => api("GET", "/api/health").then(h => { S.cli = h.cli; renderCli(); }).catch(() => {}), 2500); };
   es.onopen = () => renderCli();

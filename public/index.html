@@ -24,6 +24,7 @@
       <div class="sb-h"><span>View</span></div>
       <nav class="navlist" id="navList" aria-label="Views">
         <button data-view="floor"><span class="ic">🏠</span>Studio floor<span class="cnt" id="cntFloor"></span></button>
+        <button data-view="chat"><span class="ic">💬</span>Talk to Sol<span class="cnt" id="cntChat"></span></button>
         <button data-view="board"><span class="ic">📋</span>Board<span class="cnt" id="cntBoard"></span></button>
         <button data-view="activity"><span class="ic">📜</span>Activity<span class="cnt" id="cntActivity"></span></button>
         <button data-view="memory"><span class="ic">🧠</span>Project memory</button>
@@ -68,6 +69,22 @@
       </div>
     </div>
 
+    <div class="view" id="view-chat" hidden>
+      <div class="chat">
+        <div class="chat-h"><span class="av" id="chatAv"></span>
+          <div><b id="chatName">Sol</b><span class="hint" id="chatSub">Principal · knows this project's brief, board, team and files · can change things for you</span></div>
+          <button class="btn sm" id="chatProfile">Profile</button></div>
+        <div class="chat-log" id="chatLog"></div>
+        <div class="chat-think" id="chatThink" hidden><span class="av" id="chatThinkAv"></span><div class="bubble cbubble" id="chatThinkBubble"></div></div>
+        <div class="chat-sugg" id="chatSugg"></div>
+        <form class="chat-in" id="chatForm">
+          <button type="button" class="iconbtn" id="chatAttach" title="Add files to this project">📎</button>
+          <textarea id="chatText" rows="1" placeholder="Ask Sol anything about this project, or tell him what to change…  (Enter to send, Shift+Enter for a new line)"></textarea>
+          <button class="btn primary" id="chatSend">Send</button>
+        </form>
+      </div>
+    </div>
+
     <div class="view" id="view-board" hidden>
       <div class="view-h"><h2>Board</h2><span class="hint">synced with .project-cache/STATUS.md · drag cards between columns</span>
         <form class="addtask" id="addTask">
@@ -83,7 +100,8 @@
     </div>
 
     <div class="view" id="view-memory" hidden>
-      <div class="view-h"><h2>Project memory</h2><span class="hint">.project-cache/CONTEXT.md · injected into every agent that works on this project · drop files here to add them to inputs/</span></div>
+      <div class="view-h"><h2>Project memory</h2><span class="hint">.project-cache/CONTEXT.md · injected into every agent that works on this project</span></div>
+      <section class="files" id="inputFiles"></section>
       <article class="memory" id="memory"></article>
     </div>
 

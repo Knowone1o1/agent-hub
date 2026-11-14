@@ -4,11 +4,21 @@
   python run.py --no-browser start the server only (the desktop window uses this)
 """
 import os
+import site
 import sys
 import threading
 import webbrowser
 
-import uvicorn
+# Some packages may live in the per-user folder (pip --user). Make sure it is always on the path, even when Windows
+# starts us in a way that skips it, so a missing "anyio" (or similar) can't stop the studio from opening.
+try:
+    _user_site = site.getusersitepackages()
+    if os.path.isdir(_user_site) and _user_site not in sys.path:
+        site.addsitedir(_user_site)
+except Exception:  # noqa: BLE001
+    pass
+
+import uvicorn  # noqa: E402
 
 PORT = int(os.environ.get("STUDIO_PORT", "8777"))
 

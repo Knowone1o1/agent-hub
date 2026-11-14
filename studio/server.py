@@ -3,11 +3,12 @@ import asyncio
 import threading
 import time
 
-from fastapi import Body, FastAPI, HTTPException
+from fastapi import Body, FastAPI, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import PUBLIC_DIR, agents, bus, claude_cli, principal, projects, runner, uploads
+from . import PUBLIC_DIR, agents, bus, chat, claude_cli, principal, projects, runner, uploads
 
 app = FastAPI(title="Agent Studio", docs_url=None, redoc_url=None)
 
@@ -80,20 +81,65 @@ def assemble(body: dict = Body(...)):
                                   body.get("summary", ""), body.get("draft", []), body.get("recruit", []),
                                   body.get("tasks", []), body.get("slug"))
         if body.get("upload"):
-            uploads.attach_to_project(body["upload"], meta["slug"])
+            uploads.attach_staged(body["upload"], meta["slug"])
             bus.publish({"type": "board", "slug": meta["slug"]})
+            bus.publish({"type": "files", "slug": meta["slug"]})
         return {"project": projects.get(meta["slug"])}
     except (KeyError, ValueError) as e:
         _err(e)
 
 
-# ---------------------------------------------------------------- brief attachments (staged until the team is assembled)
+# ---------------------------------------------------------------- talk to Sol (per project)
 
-@app.post("/api/uploads")
-def upload(body: dict = Body(...)):
+@app.get("/api/projects/{slug}/chat")
+def chat_history(slug: str):
     try:
-        token, files = uploads.add(body.get("token"), body.get("files", []))
-        return {"token": token, "files": files}
+        projects.get(slug)
+        return {"messages": chat.history(slug)}
+    except KeyError as e:
+        _err(e)
+
+
+@app.post("/api/projects/{slug}/chat")
+def chat_send(slug: str, body: dict = Body(...)):
+    try:
+        return {"message": chat.send(slug, body.get("text", ""))}
+    except (KeyError, ValueError) as e:
+        _err(e)
+
+
+@app.post("/api/projects/{slug}/chat/{index}/resolve")
+def chat_resolve(slug: str, index: int, body: dict = Body(...)):
+    try:
+        return {"message": chat.resolve(slug, index, int(body.get("which", 0)), bool(body.get("approve")))}
+    except (KeyError, ValueError) as e:
+        _err(e)
+
+
+# ---------------------------------------------------------------- files: streamed straight to disk, no size limit
+# The browser sends the raw file as the request body; it is written in 1 MB chunks to "<name>.part" and renamed
+# when complete, so huge data files never sit in memory and an interrupted upload leaves no half file behind.
+
+async def _stream_to(request: Request, dest):
+    part = dest.with_name(dest.name + ".part")
+    try:
+        with open(part, "wb") as f:
+            async for chunk in request.stream():
+                if chunk:
+                    await run_in_threadpool(f.write, chunk)
+        part.replace(dest)
+    except BaseException:
+        part.unlink(missing_ok=True)
+        raise
+
+
+@app.post("/api/uploads/raw")
+async def upload_raw(request: Request, name: str, token: str = ""):
+    """A file for a new project's brief (staged until the team is assembled)."""
+    try:
+        token, dest = uploads.stage_target(token or None, name, int(request.headers.get("content-length") or 0))
+        await _stream_to(request, dest)
+        return {"token": token, "files": uploads.listing(token)}
     except (ValueError, OSError) as e:
         _err(ValueError(str(e)))
 
@@ -106,15 +152,39 @@ def upload_remove(token: str, name: str):
         _err(e)
 
 
-@app.post("/api/projects/{slug}/files")
-def project_files(slug: str, body: dict = Body(...)):
-    """Add files to an existing project (dropped on the Project memory view)."""
+@app.post("/api/projects/{slug}/files/raw")
+async def project_file_raw(slug: str, request: Request, name: str):
+    """A file for a running project: straight into projects/<slug>/inputs/, listed in CONTEXT.md for the next turns."""
     try:
-        token, _ = uploads.add(None, body.get("files", []))
-        moved = uploads.attach_to_project(token, slug)
+        dest = uploads.project_target(slug, name, int(request.headers.get("content-length") or 0))
+        await _stream_to(request, dest)
+        f = {"name": dest.name, "size": dest.stat().st_size, "kind": uploads.kind_of(dest)}
+        await run_in_threadpool(uploads.note_in_context, slug, [f])
         bus.publish({"type": "board", "slug": slug})
-        return {"files": moved}
+        bus.publish({"type": "files", "slug": slug})
+        return {"file": f}
     except (KeyError, ValueError, OSError) as e:
+        _err(e if isinstance(e, KeyError) else ValueError(str(e)))
+
+
+@app.get("/api/projects/{slug}/files")
+def project_files(slug: str):
+    try:
+        return {"files": uploads.project_files(slug), "folder": str(projects.pdir(slug) / "inputs")}
+    except KeyError as e:
+        _err(e)
+
+
+@app.post("/api/projects/{slug}/files/open")
+def open_inputs(slug: str):
+    """Open the project's inputs/ folder in Explorer."""
+    import os
+    try:
+        d = projects.pdir(slug) / "inputs"
+        d.mkdir(exist_ok=True)
+        os.startfile(str(d))
+        return {"ok": True}
+    except (KeyError, OSError) as e:
         _err(e if isinstance(e, KeyError) else ValueError(str(e)))
 
 

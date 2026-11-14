@@ -160,9 +160,34 @@ def run_ui():
     WinForms.Application.Run(form)
 
 
+def log_tail(n=6):
+    try:
+        lines = (ROOT / "state" / "server.log").read_text(encoding="utf-8", errors="replace").strip().splitlines()
+        return "\n".join(lines[-n:])
+    except OSError:
+        return "(no log)"
+
+
+def single_instance():
+    """Only one Agent Studio window: a second double-click just waits for (or reuses) the first."""
+    mutex = ctypes.windll.kernel32.CreateMutexW(None, False, "AgentStudio.SingleInstance")
+    if ctypes.windll.kernel32.GetLastError() == 183:   # ERROR_ALREADY_EXISTS
+        hwnd = ctypes.windll.user32.FindWindowW(None, "Agent Studio")
+        if hwnd:
+            ctypes.windll.user32.ShowWindow(hwnd, 9)          # restore if minimised
+            ctypes.windll.user32.SetForegroundWindow(hwnd)
+        return None
+    return mutex
+
+
 def main():
+    keep = single_instance()
+    if keep is None:
+        return
     if not server_up() and not start_server():
-        message(f"Agent Studio's server could not start.\nSee {ROOT / 'state' / 'server.log'}")
+        message("Agent Studio's server could not start.\n\nLast lines of the log:\n"
+                f"{log_tail()}\n\nFull log: {ROOT / 'state' / 'server.log'}\n"
+                "Tip: run `pip install -r requirements.txt` in the Agent Hub folder, then try again.")
         return
     try:
         run_ui()

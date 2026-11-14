@@ -1,10 +1,11 @@
-"""Files the user drops into a project brief.
+"""Files the user adds to a project.
 
-They are staged under state/uploads/<token>/ while the brief is being written, shown to the Principal (text files as
-excerpts, everything else by name and size), and moved into projects/<slug>/inputs/ when the team is assembled.
-Agents then read them with their normal Read tool (it handles text, code, PDFs and images).
+Uploads are streamed straight to disk in chunks (no size limit beyond free disk space). Files dropped into a new
+project's brief are staged under state/uploads/<token>/ and shown to the Principal (text files as excerpts, everything
+else by name and size); when the team is assembled they move to projects/<slug>/inputs/. Files added to a running
+project go straight into its inputs/ folder. Either way they are listed in CONTEXT.md, so every agent sees them on its
+next turn and can open them with the Read tool (or process large data with scripts if terminal commands are enabled).
 """
-import base64
 import re
 import shutil
 import time
@@ -14,20 +15,20 @@ from pathlib import Path
 from . import STATE_DIR, projects
 
 STAGE = STATE_DIR / "uploads"
-MAX_FILE = 25 * 1024 * 1024      # 25 MB per file
-MAX_TOTAL = 80 * 1024 * 1024     # 80 MB per brief
-TEXT_EXT = {".txt", ".md", ".markdown", ".csv", ".tsv", ".json", ".yaml", ".yml", ".xml", ".html", ".htm", ".css", ".js",
-            ".ts", ".tsx", ".jsx", ".py", ".java", ".c", ".cpp", ".h", ".cs", ".go", ".rs", ".rb", ".php", ".sql", ".sh",
-            ".bat", ".ps1", ".ini", ".toml", ".cfg", ".log", ".rst", ".tex", ".svg", ".kt", ".swift", ".r", ".m"}
+TEXT_EXT = {".txt", ".md", ".markdown", ".csv", ".tsv", ".json", ".jsonl", ".ndjson", ".yaml", ".yml", ".xml", ".html", ".htm",
+            ".css", ".js", ".ts", ".tsx", ".jsx", ".py", ".java", ".c", ".cpp", ".h", ".cs", ".go", ".rs", ".rb", ".php", ".sql",
+            ".sh", ".bat", ".ps1", ".ini", ".toml", ".cfg", ".log", ".rst", ".tex", ".svg", ".kt", ".swift", ".r", ".m", ".ipynb"}
+DATA_EXT = {".csv", ".tsv", ".json", ".jsonl", ".ndjson", ".parquet", ".xlsx", ".xls", ".sqlite", ".db", ".feather", ".h5",
+            ".hdf5", ".npy", ".npz", ".pkl", ".zip", ".gz", ".tar", ".7z", ".avro", ".orc", ".sav", ".dta"}
 
 
-def _safe_name(name):
+def safe_name(name):
     name = Path(str(name).replace("\\", "/")).name.strip() or "file"
-    name = re.sub(r"[^\w.\- ()\[\]]+", "_", name)[:120]
+    name = re.sub(r"[^\w.\- ()\[\]]+", "_", name)[:140]
     return name.lstrip(".") or "file"
 
 
-def _token(token):
+def _token_dir(token):
     if not re.fullmatch(r"[0-9a-f]{32}", token or ""):
         raise ValueError("Bad upload token.")
     return STAGE / token
@@ -35,98 +36,142 @@ def _token(token):
 
 def kind_of(path):
     ext = Path(path).suffix.lower()
-    if ext in TEXT_EXT:
-        return "text"
     if ext in (".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"):
         return "image"
     if ext == ".pdf":
         return "pdf"
+    if ext in DATA_EXT:
+        return "data"
+    if ext in TEXT_EXT:
+        return "text"
     return "file"
 
 
-def listing(token):
-    d = _token(token)
-    if not d.exists():
+def human(n):
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if n < 1024 or unit == "TB":
+            return f"{n:.0f} {unit}" if unit in ("B", "KB") else f"{n:.1f} {unit}"
+        n /= 1024
+
+
+def _unique(folder, name):
+    name, n = safe_name(name), 2
+    stem, suf = Path(name).stem, Path(name).suffix
+    while (folder / name).exists() or (folder / (name + ".part")).exists():
+        name, n = f"{stem} ({n}){suf}", n + 1
+    return folder / name
+
+
+def check_space(folder, size):
+    folder.mkdir(parents=True, exist_ok=True)
+    free = shutil.disk_usage(folder).free
+    if size and size > free - 512 * 1024 * 1024:   # keep 512 MB spare
+        raise ValueError(f"Not enough disk space: the file is {human(size)}, {human(free)} free.")
+
+
+def listing_dir(folder):
+    if not folder.exists():
         return []
-    return [{"name": p.name, "size": p.stat().st_size, "kind": kind_of(p)} for p in sorted(d.iterdir()) if p.is_file()]
+    return [{"name": p.name, "size": p.stat().st_size, "kind": kind_of(p)} for p in sorted(folder.iterdir())
+            if p.is_file() and not p.name.endswith(".part")]
 
 
-def add(token, files):
-    """files: [{name, data (base64)}]. Returns (token, listing)."""
+def listing(token):
+    return listing_dir(_token_dir(token))
+
+
+# ---------------------------------------------------------------- streaming writes
+
+def stage_target(token, name, size=0):
+    """Where a streamed brief attachment goes. Returns (token, final path)."""
     token = token or uuid.uuid4().hex
-    d = _token(token)
-    d.mkdir(parents=True, exist_ok=True)
-    total = sum(p.stat().st_size for p in d.iterdir() if p.is_file())
-    for f in files:
-        raw = base64.b64decode(str(f.get("data", "")).split(",")[-1] or b"", validate=False)
-        if len(raw) > MAX_FILE:
-            raise ValueError(f"{f.get('name')} is larger than 25 MB.")
-        total += len(raw)
-        if total > MAX_TOTAL:
-            raise ValueError("Attachments are limited to 80 MB per project brief.")
-        name, n = _safe_name(f.get("name")), 2
-        stem, suf = Path(name).stem, Path(name).suffix
-        while (d / name).exists():
-            name, n = f"{stem} ({n}){suf}", n + 1
-        (d / name).write_bytes(raw)
-    return token, listing(token)
+    d = _token_dir(token)
+    check_space(d, size)
+    return token, _unique(d, name)
+
+
+def project_target(slug, name, size=0):
+    d = projects.pdir(slug) / "inputs"
+    check_space(d, size)
+    return _unique(d, name)
 
 
 def remove(token, name):
-    p = _token(token) / _safe_name(name)
+    p = _token_dir(token) / safe_name(name)
     if p.exists():
         p.unlink()
     return listing(token)
 
 
+# ---------------------------------------------------------------- what the Principal and the agents see
+
 def summary_for_principal(token, budget=24000):
-    """What the Principal sees: names, sizes and an excerpt of each text file."""
     if not token:
         return ""
     files = listing(token)
     if not files:
         return ""
-    d, out, left = _token(token), [], budget
+    d, out, left = _token_dir(token), [], budget
     for f in files:
-        line = f"- inputs/{f['name']} ({f['kind']}, {f['size'] / 1024:.0f} KB)"
-        if f["kind"] == "text" and left > 500:
+        line = f"- inputs/{f['name']} ({f['kind']}, {human(f['size'])})"
+        if f["kind"] in ("text", "data") and left > 500 and Path(f["name"]).suffix.lower() in TEXT_EXT:
             try:
-                txt = (d / f["name"]).read_text(encoding="utf-8", errors="replace")
+                with open(d / f["name"], encoding="utf-8", errors="replace") as fh:
+                    excerpt = fh.read(min(left, 6000))   # only the start: big files are never loaded whole
             except OSError:
-                txt = ""
-            excerpt = txt[:min(left, 6000)]
+                excerpt = ""
             left -= len(excerpt)
-            line += f"\n  ```\n{excerpt}\n  ```" + ("\n  (excerpt; the full file is in the project)" if len(txt) > len(excerpt) else "")
+            line += f"\n  ```\n{excerpt}\n  ```" + ("\n  (start of the file only)" if f["size"] > len(excerpt.encode()) else "")
         out.append(line)
     return "\n".join(out)
 
 
-def attach_to_project(token, slug):
-    """Move staged files into projects/<slug>/inputs/ and list them in CONTEXT.md."""
+def note_in_context(slug, files):
+    """List new input files in CONTEXT.md under one "## Input files" section (created on first use)."""
+    if not files:
+        return
+    big = any(f["size"] > 20 * 1024 * 1024 or f["kind"] == "data" for f in files)
+    lines = "".join(f"- `inputs/{f['name']}` ({f['kind']}, {human(f['size'])}, added {time.strftime('%Y-%m-%d %H:%M')})\n" for f in files)
+    ctx_path = projects.cache(slug) / "CONTEXT.md"
+    ctx = ctx_path.read_text(encoding="utf-8")
+    if big and "never try to load a huge file whole" not in ctx:
+        lines = ("- Note for large data files: read only the first lines to learn the format, then work with scripts if "
+                 "terminal commands are enabled; never try to load a huge file whole.\n") + lines
+    head = "## Input files"
+    if head not in ctx:
+        ctx = ctx.rstrip() + (f"\n\n{head}\nFiles from the user, in the project's `inputs/` folder. Read the ones relevant to "
+                              "your task before you start (the Read tool handles text, code, PDFs and images). For large "
+                              "data files, read only the first lines to learn the format, then work with scripts if "
+                              "terminal commands are enabled; never try to load a huge file whole.\n")
+        ctx += lines
+    else:
+        start = ctx.index(head)
+        nxt = ctx.find("\n## ", start + len(head))
+        ctx = ctx[:nxt].rstrip() + "\n" + lines + ctx[nxt:] if nxt >= 0 else ctx.rstrip() + "\n" + lines
+    ctx_path.write_text(ctx, encoding="utf-8")
+    names = ", ".join(f"{f['name']} ({human(f['size'])})" for f in files)
+    projects.log_change(slug, "you", f"added input file(s): {names}" + (" · large data: agents should sample it, not read it whole" if big else ""))
+
+
+def attach_staged(token, slug):
+    """New project assembled: move the staged brief attachments into inputs/."""
     if not token:
         return []
     files = listing(token)
     if not files:
         return []
-    src, dst = _token(token), projects.pdir(slug) / "inputs"
-    dst.mkdir(exist_ok=True)
-    moved = []
+    src, moved = _token_dir(token), []
     for f in files:
-        name, n = f["name"], 2
-        stem, suf = Path(name).stem, Path(name).suffix
-        while (dst / name).exists():
-            name, n = f"{stem} ({n}){suf}", n + 1
-        shutil.move(str(src / f["name"]), str(dst / name))
-        moved.append({**f, "name": name})
+        dst = project_target(slug, f["name"])
+        shutil.move(str(src / f["name"]), str(dst))   # same drive: an instant rename, even for huge files
+        moved.append({**f, "name": dst.name})
     shutil.rmtree(src, ignore_errors=True)
-    lines = "\n".join(f"- `inputs/{m['name']}` ({m['kind']}, {m['size'] / 1024:.0f} KB)" for m in moved)
-    ctx = projects.cache(slug) / "CONTEXT.md"
-    with open(ctx, "a", encoding="utf-8") as fh:
-        fh.write(f"\n## Input files (from the user, {time.strftime('%Y-%m-%d')})\n"
-                 f"The user attached these files to the brief. They are in the project's `inputs/` folder: read the ones "
-                 f"relevant to your task before you start (the Read tool handles text, code, PDFs and images).\n{lines}\n")
-    projects.log_change(slug, "you", f"attached {len(moved)} file(s): {', '.join(m['name'] for m in moved)}")
+    note_in_context(slug, moved)
     return moved
+
+
+def project_files(slug):
+    return listing_dir(projects.pdir(slug) / "inputs")
 
 
 def cleanup(max_age_h=48):

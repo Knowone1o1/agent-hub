@@ -8,7 +8,7 @@ from . import STATE_DIR, agents, bus, projects
 from .claude_cli import TAG_NEW_TASK, TAG_RESULT, Run
 
 TOOLS_BASE = ["Read", "Write", "Edit", "Glob", "Grep"]
-DEFAULT_SETTINGS = {"max_parallel": 4, "autopilot_cycles": 4, "allow_bash": False}
+DEFAULT_SETTINGS = {"max_parallel": 4, "autopilot_cycles": 4, "allow_bash": False, "allow_web": False}
 _lock = threading.RLock()
 STATE, LOGS, RUNS, SPRINTS = {}, {}, {}, {}
 TOTALS = {"cost_usd": 0.0, "runs": 0}
@@ -27,12 +27,31 @@ def save_settings(new):
     s["max_parallel"] = max(1, min(int(s["max_parallel"]), 8))
     s["autopilot_cycles"] = max(1, min(int(s["autopilot_cycles"]), 20))
     s["allow_bash"] = bool(s["allow_bash"])
+    s["allow_web"] = bool(s["allow_web"])
     (STATE_DIR / "settings.json").write_text(json.dumps(s, indent=2), encoding="utf-8")
     return s
 
 
-def tools():
-    return TOOLS_BASE + (["Bash"] if settings()["allow_bash"] else [])
+def tools(agent=None):
+    """The tools an agent may use. Web access is per agent (its `web:` domain list) and only when "Allow web" is on;
+    each domain becomes a WebFetch(domain:...) rule that Claude Code enforces. WebSearch is never granted."""
+    s = settings()
+    out = TOOLS_BASE + (["Bash"] if s["allow_bash"] else [])
+    if agent and s["allow_web"]:
+        out += [f"WebFetch(domain:{d})" for d in agent.get("web", [])]
+    return out
+
+
+def web_note(agent):
+    """One line for the agent's prompt so it knows what it can (and can't) reach."""
+    if not agent.get("web"):
+        return "You have no web access."
+    if not settings()["allow_web"]:
+        return "Web access is switched off in the studio settings right now; work offline."
+    return ("You may fetch web pages with WebFetch, but ONLY from these domains: " + ", ".join(agent["web"]) +
+            ". Any other site is blocked. WebSearch is not available. For papers: arXiv pages work directly; many publisher "
+            "sites (ACM, AAAI, OpenReview) refuse automated fetches, so get titles, abstracts and open-access PDF links from "
+            "api.semanticscholar.org, api.openalex.org or api.crossref.org by DOI when those are on your list.")
 
 
 # ---------------------------------------------------------------- live state
@@ -96,7 +115,7 @@ PROTOCOL = """## Studio protocol (follow exactly)
 def persona(a):
     skills = f"\nSkills: {', '.join(a['skills'])}." if a.get("skills") else ""
     return (f"# You are {a['name']} {a['avatar']}, {a['role']} in the user's AI engineering studio.\n"
-            f"Write in this tone: {a['tone']}.{skills}\n\n{a.get('bio', '')}")
+            f"Write in this tone: {a['tone']}.{skills}\nWeb: {web_note(a)}\n\n{a.get('bio', '')}")
 
 
 def team_lines(slug):
@@ -105,7 +124,8 @@ def team_lines(slug):
     for aid in meta.get("team", []):
         try:
             a = agents.get(aid)
-            out.append(f"- @{aid}: {a['name']} {a['avatar']}, {a['role']}")
+            web = f" · web: {', '.join(a['web'])}" if a.get("web") and settings()["allow_web"] else ""
+            out.append(f"- @{aid}: {a['name']} {a['avatar']}, {a['role']}{web}")
         except KeyError:
             pass
     return "\n".join(out) or "- (no one yet)"
@@ -122,7 +142,7 @@ def onboarding(slug):
 
 # ---------------------------------------------------------------- one agent turn
 
-def run_agent(aid, prompt, system, cwd, *, slug=None, task=None, label=None, use_tools=True, model=None):
+def run_agent(aid, prompt, system, cwd, *, slug=None, task=None, label=None, use_tools=True, model=None, tool_list=None):
     """Blocking: one streamed `claude -p` call for this agent. Updates the live state as it goes."""
     a = agents.get(aid)
     _set(aid, state="working" if use_tools else "thinking", step=label or "Waking up…", progress=None, task=task,
@@ -138,7 +158,7 @@ def run_agent(aid, prompt, system, cwd, *, slug=None, task=None, label=None, use
     def on_log(kind, text):
         _log(aid, kind, text, slug)
 
-    run = Run(prompt, system, cwd, model=model or a["model"], tools=tools() if use_tools else [],
+    run = Run(prompt, system, cwd, model=model or a["model"], tools=(tool_list if tool_list is not None else tools(a)) if use_tools else [],
               on_step=on_step, on_progress=on_progress, on_log=on_log)
     with _lock:
         RUNS[aid] = run
